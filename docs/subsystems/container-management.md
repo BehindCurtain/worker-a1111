@@ -35,11 +35,13 @@ FROM alpine/git:2.43.0 as download
 
 #### Stage 2: Final Image
 ```dockerfile
-FROM python:3.10.14-slim as build_final_image
+FROM pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime as build_final_image
 ```
-- **Base Image**: Python 3.10.14-slim (security ve stability)
+- **Base Image**: PyTorch 2.7.0 with CUDA 12.8 runtime (RTX 5090 support)
+- **CUDA Support**: sm_120 compute capability for Blackwell architecture
 - **System Packages**: GPU support, performance libraries
 - **Python Dependencies**: Automatic1111 requirements + RunPod SDK
+- **RTX 5090 Compatibility**: Native support for latest GPU architecture
 
 ### Kritik Konfigürasyonlar
 
@@ -63,9 +65,14 @@ FROM python:3.10.14-slim as build_final_image
 - **System Fonts**: Text rendering support
 
 ### Python Level
-- **torch**: Deep learning framework
-- **xformers**: Attention mechanism optimization
+- **torch**: Deep learning framework (2.7.0+ with CUDA 12.8)
+- **xformers**: Attention mechanism optimization (CUDA 12.8 compatible)
 - **runpod**: Serverless platform SDK
+
+### CUDA Level
+- **CUDA Runtime**: 12.8+ for RTX 5090 support
+- **Compute Capability**: sm_120 (Blackwell architecture)
+- **cuDNN**: 9.x for optimized neural network operations
 
 ## Konfigürasyon Parametreleri
 
@@ -113,6 +120,25 @@ FROM python:3.10.14-slim as build_final_image
 2. **GPU Detection**: CUDA driver compatibility
 3. **Memory Issues**: Insufficient GPU memory, tcmalloc configuration
 4. **Build Failures**: Dependency conflicts, version mismatches
+5. **RTX 5090 CUDA Errors**: "no kernel image is available for execution on the device"
+
+### RTX 5090 Specific Issues
+
+#### CUDA Compatibility Error
+**Symptom**: `RuntimeError: CUDA error: no kernel image is available for execution on the device`
+**Cause**: PyTorch version doesn't support sm_120 compute capability
+**Solution**: 
+- Use PyTorch 2.7.0+ with CUDA 12.8
+- Ensure base image: `pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime`
+- Verify xformers compatibility with CUDA 12.8
+
+#### Compute Capability Mismatch
+**Symptom**: GPU detected but operations fail
+**Cause**: PyTorch compiled for older compute capabilities (sm_50-sm_90)
+**Solution**:
+- Check GPU compute capability: `nvidia-smi --query-gpu=compute_cap --format=csv`
+- Ensure PyTorch supports detected compute capability
+- Use nightly builds if stable version insufficient
 
 ### Debug Strategies
 - **Layer-by-layer Build**: Isolate build stage issues

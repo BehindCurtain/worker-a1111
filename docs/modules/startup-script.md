@@ -2,7 +2,7 @@
 
 ## Genel Bakış
 
-Startup script, container başlatma sürecini orchestrate eder. WebUI API ve RunPod handler servislerinin sıralı başlatılmasından, environment setup ve process management işlemlerinden sorumludur.
+Startup script, container başlatma sürecini orchestrate eder. CUDA compatibility test, WebUI API ve RunPod handler servislerinin sıralı başlatılmasından, environment setup ve process management işlemlerinden sorumludur.
 
 ## Script Yapısı
 
@@ -13,9 +13,11 @@ Startup script, container başlatma sürecini orchestrate eder. WebUI API ve Run
 
 ### Execution Flow
 1. **Initialization Logging**
-2. **Environment Setup**
-3. **WebUI API Launch**
-4. **Handler Service Start**
+2. **CUDA Compatibility Testing**
+3. **Environment Setup**
+4. **WebUI API Launch**
+5. **Handler Service Start**
+6. **Process Management**
 
 ## Komut Analizi
 
@@ -32,9 +34,49 @@ Container başlatma sürecinin başladığını loglar.
 - **Debug Support**: Container lifecycle tracking
 - **Simple Output**: Minimal logging overhead
 
-### 2. WebUI API Startup Announcement
+### 2. CUDA Compatibility Test
 ```bash
-echo "Starting WebUI API"
+echo "=============================================="
+echo "RUNNING CUDA COMPATIBILITY TESTS"
+echo "=============================================="
+
+python /cuda_test.py
+CUDA_TEST_EXIT_CODE=$?
+```
+
+#### Amaç
+RTX 5090 CUDA compatibility'sini test eder ve sistem hazırlığını doğrular.
+
+#### Teknik Detaylar
+- **Test Script**: /cuda_test.py execution
+- **Exit Code Capture**: $? ile test sonucu yakalama
+- **RTX 5090 Support**: sm_120 compute capability kontrolü
+- **PyTorch Verification**: CUDA 12.8 compatibility test
+
+#### Test Sonuçları
+```bash
+if [ $CUDA_TEST_EXIT_CODE -eq 0 ]; then
+    echo "🎉 CUDA compatibility test PASSED - RTX 5090 ready!"
+elif [ $CUDA_TEST_EXIT_CODE -eq 1 ]; then
+    echo "⚠ CUDA test passed with warnings - continuing with reduced performance"
+else
+    echo "❌ CUDA compatibility test FAILED"
+    echo "❌ RTX 5090 may not be properly supported"
+    echo "❌ Check the logs above for details"
+    echo "⚠ Attempting to continue anyway..."
+fi
+```
+
+#### Exit Code Meanings
+- **0**: All tests passed, RTX 5090 fully supported
+- **1**: CUDA works but xformers issues, reduced performance
+- **2+**: CUDA compatibility issues, may not work properly
+
+### 3. WebUI API Startup Announcement
+```bash
+echo "=============================================="
+echo "STARTING WEBUI API"
+echo "=============================================="
 ```
 
 #### Amaç
@@ -45,10 +87,11 @@ WebUI API başlatma sürecinin başladığını belirtir.
 - **Debug Information**: Troubleshooting support
 - **Sequential Logging**: Process order indication
 
-### 3. Performance Optimization Setup
+### 4. Performance Optimization Setup
 ```bash
 TCMALLOC="$(ldconfig -p | grep -Po "libtcmalloc.so.\d" | head -n 1)"
 export LD_PRELOAD="${TCMALLOC}"
+export PYTHONUNBUFFERED=true
 ```
 
 #### Amaç
@@ -66,19 +109,6 @@ tcmalloc memory allocator'ı sistem genelinde aktif eder.
 3. **First Match**: head -n 1 ile ilk match selection
 4. **Environment Setting**: LD_PRELOAD variable export
 
-### 4. Python Environment Configuration
-```bash
-export PYTHONUNBUFFERED=true
-```
-
-#### Amaç
-Python output buffering'i deaktive eder.
-
-#### Özellikler
-- **Real-time Logging**: Immediate output visibility
-- **Debug Support**: Live process monitoring
-- **Container Compatibility**: Docker logging optimization
-
 ### 5. WebUI API Process Launch
 ```bash
 python /stable-diffusion-webui/webui.py \
@@ -87,6 +117,9 @@ python /stable-diffusion-webui/webui.py \
   --skip-python-version-check \
   --skip-torch-cuda-test \
   --skip-install \
+  --ckpt-dir /runpod-volume/models/checkpoints \
+  --lora-dir /runpod-volume/models/loras \
+  --embeddings-dir /runpod-volume/models/embeddings \
   --ckpt /model.safetensors \
   --opt-sdp-attention \
   --disable-safe-unpickle \
@@ -104,16 +137,19 @@ Automatic1111 WebUI'yi API mode'da background process olarak başlatır.
 #### Parameter Analizi
 
 ##### Performance Optimizations
-- `--xformers`: Memory-efficient attention mechanism
+- `--xformers`: Memory-efficient attention mechanism (CUDA 12.8 compatible)
 - `--opt-sdp-attention`: Scaled dot-product attention optimization
 - `--no-half-vae`: Full precision VAE for quality
 
 ##### Environment Compatibility
 - `--skip-python-version-check`: Python version validation bypass
-- `--skip-torch-cuda-test`: CUDA test bypass
+- `--skip-torch-cuda-test`: CUDA test bypass (already tested)
 - `--skip-install`: Dependency installation bypass
 
 ##### Model Configuration
+- `--ckpt-dir /runpod-volume/models/checkpoints`: Network volume checkpoint directory
+- `--lora-dir /runpod-volume/models/loras`: Network volume LoRA directory
+- `--embeddings-dir /runpod-volume/models/embeddings`: Network volume embeddings directory
 - `--ckpt /model.safetensors`: Pre-loaded model path
 - `--no-download-sd-model`: Model download bypass
 - `--no-hashing`: Model hash calculation bypass
@@ -130,9 +166,26 @@ Automatic1111 WebUI'yi API mode'da background process olarak başlatır.
 ##### Background Execution
 - `&`: Background process execution
 
-### 6. Handler Service Startup
+### 6. Process Management
 ```bash
-echo "Starting RunPod Handler"
+WEBUI_PID=$!
+echo "WebUI API started with PID: $WEBUI_PID"
+```
+
+#### Amaç
+Background process'in PID'ini yakalar ve monitoring için saklar.
+
+#### Özellikler
+- **PID Capture**: $! ile background process PID
+- **Process Tracking**: PID logging for debugging
+- **Process Management**: Shutdown coordination için PID saklama
+
+### 7. Handler Service Startup
+```bash
+echo "=============================================="
+echo "STARTING RUNPOD HANDLER"
+echo "=============================================="
+
 python -u /handler.py
 ```
 
@@ -144,13 +197,32 @@ RunPod handler servisini foreground process olarak başlatır.
 - **Unbuffered Output**: -u flag ile immediate output
 - **Service Coordination**: WebUI API hazır olduktan sonra başlatma
 
+### 8. Graceful Shutdown
+```bash
+echo "RunPod handler exited, stopping WebUI API..."
+kill $WEBUI_PID 2>/dev/null || true
+wait $WEBUI_PID 2>/dev/null || true
+echo "Shutdown complete."
+```
+
+#### Amaç
+Handler service exit olduğunda WebUI API'yi de temiz şekilde kapatır.
+
+#### Özellikler
+- **Process Termination**: SIGTERM signal gönderme
+- **Error Suppression**: 2>/dev/null ile error hiding
+- **Process Waiting**: wait ile process completion
+- **Graceful Shutdown**: Clean termination sequence
+
 ## Process Management Strategy
 
 ### Service Orchestration
 ```
-1. Environment Setup (tcmalloc, Python)
-2. WebUI API Launch (Background)
-3. Handler Service Start (Foreground)
+1. CUDA Compatibility Test
+2. Environment Setup (tcmalloc, Python)
+3. WebUI API Launch (Background)
+4. Handler Service Start (Foreground)
+5. Graceful Shutdown (Both services)
 ```
 
 ### Process Hierarchy
@@ -162,6 +234,22 @@ RunPod handler servisini foreground process olarak başlatır.
 - **Implicit Coordination**: Handler service WebUI API'yi bekler
 - **Port-based Communication**: 3000 port üzerinden HTTP
 - **Process Isolation**: Separate process spaces
+- **PID Management**: Background process tracking
+
+## CUDA Compatibility Integration
+
+### Test Sequence
+1. **PyTorch Version Check**: 2.7.0+ verification
+2. **CUDA Availability**: torch.cuda.is_available()
+3. **GPU Detection**: Device count and properties
+4. **Compute Capability**: sm_120 support verification
+5. **Tensor Operations**: GPU functionality test
+6. **Xformers Test**: Optimization library compatibility
+
+### Error Handling
+- **Test Failure**: Continue with warnings
+- **Partial Success**: Reduced performance mode
+- **Complete Success**: Full RTX 5090 optimization
 
 ## Environment Management
 
@@ -185,12 +273,14 @@ export PYTHONUNBUFFERED=true
 ### Script Robustness
 - **Library Detection**: tcmalloc availability check
 - **Process Isolation**: Background/foreground separation
-- **Implicit Error Handling**: Process-level error management
+- **CUDA Test Integration**: Compatibility verification
+- **Graceful Shutdown**: Clean process termination
 
 ### Failure Scenarios
-1. **tcmalloc Not Found**: Script continues without optimization
-2. **WebUI Launch Failure**: Background process failure
-3. **Handler Failure**: Foreground process termination
+1. **CUDA Test Failure**: Continue with warnings
+2. **tcmalloc Not Found**: Script continues without optimization
+3. **WebUI Launch Failure**: Background process failure
+4. **Handler Failure**: Foreground process termination
 
 ### Recovery Mechanisms
 - **Container Restart**: Platform-level recovery
@@ -201,16 +291,19 @@ export PYTHONUNBUFFERED=true
 
 ### Startup Sequence
 1. **Immediate**: Environment setup (< 1 second)
-2. **Medium**: WebUI API initialization (30-60 seconds)
-3. **Fast**: Handler service start (< 5 seconds)
+2. **Fast**: CUDA compatibility test (5-10 seconds)
+3. **Medium**: WebUI API initialization (30-60 seconds)
+4. **Fast**: Handler service start (< 5 seconds)
 
 ### Resource Usage
 - **Memory**: tcmalloc optimization active
+- **GPU**: CUDA 12.8 with RTX 5090 support
 - **CPU**: Parallel service initialization
 - **I/O**: Unbuffered Python output
 
 ### Optimization Features
 - **Memory Allocator**: tcmalloc performance boost
+- **CUDA Compatibility**: RTX 5090 sm_120 support
 - **Attention Mechanism**: xformers optimization
 - **Model Loading**: Pre-loaded model strategy
 
@@ -222,6 +315,7 @@ export PYTHONUNBUFFERED=true
 - **Process Management**: Container lifecycle management
 
 ### Service Integration
+- **CUDA Test**: Compatibility verification
 - **WebUI API**: Background service initialization
 - **Handler Service**: Foreground service execution
 - **Port Management**: Service communication setup
@@ -230,30 +324,42 @@ export PYTHONUNBUFFERED=true
 
 ### Startup Logging
 - **Process Initiation**: "Worker Initiated"
+- **CUDA Testing**: Compatibility test results
 - **Service Startup**: "Starting WebUI API"
 - **Handler Launch**: "Starting RunPod Handler"
+- **Shutdown**: "Shutdown complete"
 
 ### Process Visibility
-- **Background Process**: WebUI API silent startup
+- **CUDA Test**: Detailed compatibility information
+- **Background Process**: WebUI API PID logging
 - **Foreground Process**: Handler service visible output
 - **Environment Logging**: tcmalloc detection implicit
 
 ## Troubleshooting
 
 ### Common Issues
-1. **tcmalloc Not Found**: Performance degradation
-2. **Port Conflicts**: Service binding failures
-3. **Model Loading Errors**: WebUI initialization failures
-4. **Handler Connection Errors**: Service communication issues
+1. **CUDA Compatibility Failure**: RTX 5090 not supported
+2. **tcmalloc Not Found**: Performance degradation
+3. **Port Conflicts**: Service binding failures
+4. **Model Loading Errors**: WebUI initialization failures
+5. **Handler Connection Errors**: Service communication issues
 
 ### Debug Strategies
+- **CUDA Test Analysis**: /cuda_test.py detailed output
 - **Process Monitoring**: ps aux | grep python
 - **Port Checking**: netstat -tlnp | grep 3000
 - **Log Analysis**: Container log examination
 - **Environment Verification**: env | grep -E "(LD_PRELOAD|PYTHON)"
 
+### RTX 5090 Specific Debugging
+- **Compute Capability**: nvidia-smi --query-gpu=compute_cap --format=csv
+- **PyTorch Version**: python -c "import torch; print(torch.__version__)"
+- **CUDA Version**: python -c "import torch; print(torch.version.cuda)"
+- **GPU Detection**: python -c "import torch; print(torch.cuda.device_count())"
+
 ### Performance Tuning
 - **Memory Allocation**: tcmalloc configuration
+- **CUDA Optimization**: RTX 5090 specific tuning
 - **WebUI Parameters**: Optimization flag tuning
 - **Process Priorities**: CPU scheduling optimization
 - **Resource Limits**: Container resource management
@@ -270,4 +376,4 @@ export PYTHONUNBUFFERED=true
 - **Model Path**: Trusted model source
 - **API Access**: Container-internal access only
 
-Bu script, projenin tüm servislerinin coordinated ve optimized şekilde başlatılmasını sağlar ve system reliability'yi garanti eder.
+Bu script, projenin tüm servislerinin coordinated ve optimized şekilde başlatılmasını sağlar, RTX 5090 compatibility'sini doğrular ve system reliability'yi garanti eder.

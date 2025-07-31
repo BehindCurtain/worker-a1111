@@ -11,27 +11,42 @@ RUN apk add --no-cache wget && \
 # ---------------------------------------------------------------------------- #
 #                        Stage 2: Build the final image                        #
 # ---------------------------------------------------------------------------- #
-FROM python:3.10.14-slim as build_final_image
+FROM pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime as build_final_image
 
 ARG A1111_RELEASE=v1.9.3
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_PREFER_BINARY=1 \
     ROOT=/stable-diffusion-webui \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    CUDA_HOME=/usr/local/cuda \
+    PATH=/usr/local/cuda/bin:$PATH
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# Install system dependencies
 RUN apt-get update && \
     apt install -y \
     fonts-dejavu-core rsync git jq moreutils aria2 wget libgoogle-perftools-dev libtcmalloc-minimal4 procps libgl1 libglib2.0-0 && \
     apt-get autoremove -y && rm -rf /var/lib/apt/lists/* && apt-get clean -y
 
+# Verify CUDA and PyTorch installation
+RUN python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'GPU count: {torch.cuda.device_count()}')" || echo "CUDA verification failed, but continuing..."
+
+# Clone and setup Automatic1111 WebUI
 RUN --mount=type=cache,target=/root/.cache/pip \
     git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git && \
     cd stable-diffusion-webui && \
-    git reset --hard ${A1111_RELEASE} && \
-    pip install xformers && \
+    git reset --hard ${A1111_RELEASE}
+
+# Install xformers compatible with CUDA 12.8 and PyTorch 2.7.0
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install xformers --index-url https://download.pytorch.org/whl/cu128
+
+# Install other WebUI requirements, but skip PyTorch (already installed)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    cd stable-diffusion-webui && \
+    sed -i '/torch==/d; /torchvision==/d; /torchaudio==/d' requirements_versions.txt && \
     pip install -r requirements_versions.txt && \
     python -c "from launch import prepare_environment; prepare_environment()" --skip-torch-cuda-test
 
@@ -49,5 +64,5 @@ COPY test_input.json .
 
 ADD src .
 
-RUN chmod +x /start.sh
+RUN chmod +x /start.sh /cuda_test.py
 CMD /start.sh

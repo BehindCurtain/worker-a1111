@@ -2,10 +2,36 @@
 
 echo "Worker Initiated"
 
-echo "Starting WebUI API"
+echo "=============================================="
+echo "RUNNING CUDA COMPATIBILITY TESTS"
+echo "=============================================="
+
+# Run CUDA compatibility test
+python /cuda_test.py
+CUDA_TEST_EXIT_CODE=$?
+
+if [ $CUDA_TEST_EXIT_CODE -eq 0 ]; then
+    echo "🎉 CUDA compatibility test PASSED - RTX 5090 ready!"
+elif [ $CUDA_TEST_EXIT_CODE -eq 1 ]; then
+    echo "⚠ CUDA test passed with warnings - continuing with reduced performance"
+else
+    echo "❌ CUDA compatibility test FAILED"
+    echo "❌ RTX 5090 may not be properly supported"
+    echo "❌ Check the logs above for details"
+    echo "⚠ Attempting to continue anyway..."
+fi
+
+echo ""
+echo "=============================================="
+echo "STARTING WEBUI API"
+echo "=============================================="
+
+# Setup memory optimization
 TCMALLOC="$(ldconfig -p | grep -Po "libtcmalloc.so.\d" | head -n 1)"
 export LD_PRELOAD="${TCMALLOC}"
 export PYTHONUNBUFFERED=true
+
+# Start WebUI API in background
 python /stable-diffusion-webui/webui.py \
   --xformers \
   --no-half-vae \
@@ -25,5 +51,20 @@ python /stable-diffusion-webui/webui.py \
   --no-hashing \
   --no-download-sd-model &
 
-echo "Starting RunPod Handler"
+# Store WebUI PID for monitoring
+WEBUI_PID=$!
+echo "WebUI API started with PID: $WEBUI_PID"
+
+echo ""
+echo "=============================================="
+echo "STARTING RUNPOD HANDLER"
+echo "=============================================="
+
+# Start RunPod handler
 python -u /handler.py
+
+# If handler exits, also stop WebUI
+echo "RunPod handler exited, stopping WebUI API..."
+kill $WEBUI_PID 2>/dev/null || true
+wait $WEBUI_PID 2>/dev/null || true
+echo "Shutdown complete."
