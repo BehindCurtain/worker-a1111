@@ -2,6 +2,7 @@ import time
 import runpod
 import requests
 from requests.adapters import HTTPAdapter, Retry
+from model_manager import model_manager
 
 LOCAL_URL = "http://127.0.0.1:3000/sdapi/v1"
 
@@ -44,6 +45,56 @@ def run_inference(inference_request):
     return response.json()
 
 
+def prepare_inference_request(input_data):
+    """
+    Prepare inference request with model management and LoRA support.
+    """
+    # Extract model information
+    checkpoint_info = input_data.get("checkpoint")
+    loras = input_data.get("loras", [])
+    
+    # Prepare models (download if needed)
+    checkpoint_path, lora_paths = model_manager.prepare_models_for_request(
+        checkpoint_info, loras
+    )
+    
+    # Build the inference request
+    inference_request = {}
+    
+    # Copy standard parameters
+    standard_params = [
+        "prompt", "negative_prompt", "steps", "cfg_scale", "width", "height",
+        "sampler_name", "seed", "batch_size", "n_iter", "restore_faces",
+        "tiling", "do_not_save_samples", "do_not_save_grid"
+    ]
+    
+    for param in standard_params:
+        if param in input_data:
+            inference_request[param] = input_data[param]
+    
+    # Handle prompt with LoRA integration
+    base_prompt = input_data.get("prompt", "")
+    if lora_paths:
+        enhanced_prompt = model_manager.build_lora_prompt(base_prompt, lora_paths)
+        inference_request["prompt"] = enhanced_prompt
+        print(f"Enhanced prompt with LoRAs: {enhanced_prompt}")
+    
+    # Handle checkpoint switching if needed
+    if checkpoint_path and checkpoint_info:
+        # Note: Checkpoint switching requires WebUI API restart or model reload
+        # For now, we'll log the checkpoint info
+        print(f"Using checkpoint: {checkpoint_info['name']} at {checkpoint_path}")
+        
+        # Add checkpoint info to override_settings if supported
+        if "override_settings" not in inference_request:
+            inference_request["override_settings"] = {}
+        
+        # Try to set the checkpoint (this may not work without WebUI restart)
+        inference_request["override_settings"]["sd_model_checkpoint"] = checkpoint_info["name"]
+    
+    return inference_request
+
+
 # ---------------------------------------------------------------------------- #
 #                                RunPod Handler                                #
 # ---------------------------------------------------------------------------- #
@@ -51,11 +102,30 @@ def handler(event):
     """
     This is the handler function that will be called by the serverless.
     """
-
-    json = run_inference(event["input"])
-
-    # return the output that you want to be returned like pre-signed URLs to output artifacts
-    return json
+    try:
+        # Prepare inference request with model management
+        inference_request = prepare_inference_request(event["input"])
+        
+        # Run inference
+        result = run_inference(inference_request)
+        
+        # Add cache statistics to response for debugging
+        cache_stats = model_manager.get_cache_stats()
+        result["cache_info"] = {
+            "checkpoints_cached": cache_stats["checkpoints"]["count"],
+            "loras_cached": cache_stats["loras"]["count"],
+            "total_cache_size_mb": (cache_stats["checkpoints"]["total_size"] + 
+                                  cache_stats["loras"]["total_size"]) / (1024 * 1024)
+        }
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error in handler: {e}")
+        return {
+            "error": str(e),
+            "message": "Failed to process inference request"
+        }
 
 
 if __name__ == "__main__":

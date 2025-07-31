@@ -37,6 +37,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 COPY --from=download /model.safetensors /model.safetensors
 
+# Create network volume mount point
+RUN mkdir -p /workspace/models/checkpoints /workspace/models/loras /workspace/models/embeddings
+
 # install dependencies
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \

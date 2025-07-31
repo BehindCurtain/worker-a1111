@@ -1,11 +1,24 @@
 {
   "input": {
-    "prompt": "a photo of an astronaut riding a horse on mars",
-    "negative_prompt": "blurry, bad quality",
+    "prompt": "a beautiful landscape with mountains and lake",
+    "negative_prompt": "blurry, bad quality, low resolution",
     "width": 512,
     "height": 512,
-    "num_inference_steps": 20,
-    "guidance_scale": 7.5,
-    "seed": 42
+    "steps": 25,
+    "cfg_scale": 7.5,
+    "sampler_name": "DPM++ 2M Karras",
+    "seed": 42,
+    "checkpoint": {
+      "name": "deliberate_v6",
+      "url": "https://huggingface.co/XpucT/Deliberate/resolve/main/Deliberate_v6.safetensors"
+    },
+    "loras": [
+      {
+        "name": "landscape_enhancer",
+        "url": "https://civitai.com/api/download/models/example",
+        "scale": 0.8,
+        "hash": "optional_hash_for_verification"
+      }
+    ]
   }
 }

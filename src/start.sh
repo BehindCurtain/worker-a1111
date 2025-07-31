@@ -12,6 +12,9 @@ python /stable-diffusion-webui/webui.py \
   --skip-python-version-check \
   --skip-torch-cuda-test \
   --skip-install \
+  --ckpt-dir /workspace/models/checkpoints \
+  --lora-dir /workspace/models/loras \
+  --embeddings-dir /workspace/models/embeddings \
   --ckpt /model.safetensors \
   --opt-sdp-attention \
   --disable-safe-unpickle \
