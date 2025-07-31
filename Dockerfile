@@ -64,5 +64,5 @@ COPY test_input.json .
 
 ADD src .
 
-RUN chmod +x /start.sh /cuda_test.py
-CMD /start.sh
+RUN chmod +x start.sh cuda_test.py
+CMD ./start.sh

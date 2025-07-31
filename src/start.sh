@@ -7,7 +7,7 @@ echo "RUNNING CUDA COMPATIBILITY TESTS"
 echo "=============================================="
 
 # Run CUDA compatibility test
-python /cuda_test.py
+python ./cuda_test.py
 CUDA_TEST_EXIT_CODE=$?
 
 if [ $CUDA_TEST_EXIT_CODE -eq 0 ]; then
@@ -61,7 +61,7 @@ echo "STARTING RUNPOD HANDLER"
 echo "=============================================="
 
 # Start RunPod handler
-python -u /handler.py
+python -u ./handler.py
 
 # If handler exits, also stop WebUI
 echo "RunPod handler exited, stopping WebUI API..."
