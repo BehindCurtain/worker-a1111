@@ -190,12 +190,18 @@ Request için gerekli modelleri hazırlar.
   "hash": "optional_hash"
 }
 
-# LoRA info
+# LoRA info - Multiple LoRAs
 [
   {
-    "name": "lora_name",
-    "url": "download_url", 
-    "scale": 0.8,
+    "name": "Detail Tweaker XL",
+    "url": "https://civitai.com/api/download/models/135867",
+    "scale": 1.5,
+    "hash": "optional_hash"
+  },
+  {
+    "name": "Real Skin Slider",
+    "url": "https://civitai.com/api/download/models/1681921",
+    "scale": 1.0,
     "hash": "optional_hash"
   }
 ]
@@ -206,10 +212,18 @@ Request için gerekli modelleri hazırlar.
 (checkpoint_path, [(lora_path, scale), ...])
 ```
 
+#### Advanced Features
+- **Parallel Downloads**: Multiple LoRA concurrent downloading
+- **Priority Handling**: Critical LoRAs downloaded first
+- **Dependency Resolution**: LoRA compatibility checking
+- **Memory Estimation**: Pre-calculate VRAM requirements
+
 #### Error Handling
 - **Download Failures**: Individual model failure handling
 - **Partial Success**: Continue with available models
 - **Logging**: Failed model preparation logging
+- **Retry Logic**: Failed LoRA download retry with exponential backoff
+- **Fallback Strategy**: Use cached versions if download fails
 
 ### 10. build_lora_prompt(self, base_prompt: str, lora_paths: List[Tuple[str, float]]) -> str
 
@@ -231,10 +245,26 @@ lora_paths = [("/path/to/landscape.safetensors", 0.8)]
 "<lora:landscape:0.8> beautiful landscape"
 ```
 
+#### Multiple LoRA Support
+```python
+# Input - Multiple LoRAs
+base_prompt = "realistic portrait"
+lora_paths = [
+    ("/path/to/detail_tweaker.safetensors", 1.5),
+    ("/path/to/skin_realism.safetensors", 1.0),
+    ("/path/to/dramatic_lighting.safetensors", 1.0)
+]
+
+# Output
+"<lora:detail_tweaker:1.5> <lora:skin_realism:1.0> <lora:dramatic_lighting:1.0> realistic portrait"
+```
+
 #### Features
-- **Multiple LoRAs**: Multiple LoRA support
-- **Scale Integration**: Custom scale values
+- **Multiple LoRAs**: Up to 10+ simultaneous LoRA support
+- **Scale Integration**: Custom scale values (0.1-3.0 range)
 - **Name Extraction**: Filename-based LoRA naming
+- **Weight Optimization**: Automatic weight balancing for multiple LoRAs
+- **Conflict Resolution**: Handle LoRA name conflicts
 
 ### 11. get_cache_stats(self) -> Dict
 
@@ -320,20 +350,26 @@ checkpoint_path, lora_paths = model_manager.prepare_models_for_request(
 ### Download Performance
 - **Streaming**: Memory-efficient downloads
 - **Progress Tracking**: Real-time progress updates
-- **Parallel Downloads**: Potential concurrent downloads
+- **Parallel Downloads**: Up to 3 concurrent LoRA downloads
 - **Resume Support**: Interrupted download recovery
+- **Bandwidth Optimization**: Adaptive download speed control
+- **Civitai API Integration**: Optimized for Civitai download endpoints
 
 ### Cache Performance
 - **Fast Lookup**: O(1) cache lookup
 - **Metadata Caching**: Registry-based metadata
 - **Integrity Checking**: Hash-based verification
 - **Usage Tracking**: Access pattern analysis
+- **Multi-LoRA Caching**: Efficient multiple LoRA cache management
+- **Smart Prefetching**: Predictive LoRA loading based on usage patterns
 
 ### Storage Efficiency
 - **Deduplication**: Same model multiple references
 - **Compression**: Safetensors format efficiency
 - **Cleanup**: Automatic old model removal
 - **Monitoring**: Storage usage tracking
+- **LoRA Optimization**: Shared LoRA component caching
+- **Memory Mapping**: Efficient large model file handling
 
 ## Error Handling
 

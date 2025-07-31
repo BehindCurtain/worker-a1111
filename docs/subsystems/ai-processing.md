@@ -62,12 +62,46 @@ python /stable-diffusion-webui/webui.py \
 
 ### Model Specifications
 
-#### Deliberate v6 Model
+#### Supported Checkpoints
+
+##### Deliberate v6 Model
 - **Type**: Stable Diffusion v1.5 based
 - **Format**: Safetensors (.safetensors)
 - **Size**: ~4GB
 - **Source**: HuggingFace (XpucT/Deliberate)
 - **Specialty**: Photorealistic image generation
+
+##### Jib Mix Illustrious Realistic
+- **Type**: Stable Diffusion XL based
+- **Format**: Safetensors (.safetensors)
+- **Size**: ~6.5GB
+- **Source**: Civitai (Model ID: 1590699)
+- **Version**: v2.0 Revelation
+- **Specialty**: Ultra-realistic portrait generation, enhanced detail rendering
+- **Optimization**: Pruned FP16 for memory efficiency
+
+#### Supported LoRA Models
+
+##### Detail Enhancement LoRAs
+- **Detail Tweaker XL**: General detail enhancement (Scale: 1.5)
+- **Hand Detail FLUX & XL**: Hand and finger detail improvement (Scale: 1.0)
+
+##### Realism Enhancement LoRAs
+- **Boring Reality primaryV3.0**: Realistic skin and texture (Scale: 0.3)
+- **Boring Reality primaryV4.0**: Enhanced realism v4 (Scale: 0.4)
+- **epiCRealismXL-KiSS Enhancer**: Overall realism boost (Scale: 1.0)
+- **Real Skin Slider**: Skin texture realism (Scale: 1.0)
+
+##### Style and Lighting LoRAs
+- **Dramatic Lighting Slider**: Enhanced lighting effects (Scale: 1.0)
+- **Pony Realism Slider**: Realistic style enhancement (Scale: 3.0)
+- **Amateur style - slider (Pony)**: Amateur photography style (Scale: 1.0)
+
+#### LoRA Combination Strategies
+- **Layered Enhancement**: Multiple LoRAs for cumulative effects
+- **Weight Balancing**: Optimal scale values to prevent over-processing
+- **Conflict Resolution**: Compatible LoRA combinations
+- **Memory Management**: Efficient multi-LoRA loading
 
 #### Model Characteristics
 - **Resolution**: 512x512 native (scalable)
@@ -95,9 +129,17 @@ python /stable-diffusion-webui/webui.py \
   "height": "Output height (64-2048)",
   "sampler_name": "Sampling algorithm",
   "seed": "Reproducibility seed",
-  "batch_size": "Parallel generation count"
+  "batch_size": "Parallel generation count",
+  "clip_skip": "CLIP layer skip (1-12)"
 }
 ```
+
+#### CLIP Skip Parameter
+- **Purpose**: Controls which CLIP layer to use for text encoding
+- **Range**: 1-12 (typically 1-2 for most models)
+- **Default**: 1 (use final CLIP layer)
+- **Usage**: Higher values (2) can improve artistic style adherence
+- **Model Specific**: Some models are trained with specific CLIP skip values
 
 ### Performance Optimizations
 
@@ -106,6 +148,14 @@ python /stable-diffusion-webui/webui.py \
 - **Dynamic Batching**: Optimal batch size selection
 - **Memory Cleanup**: Garbage collection optimization
 - **VRAM Monitoring**: GPU memory usage tracking
+- **Multi-LoRA Support**: Efficient multiple LoRA loading and processing
+- **LoRA Memory Optimization**: Dynamic LoRA weight application
+
+#### LoRA Processing Optimizations
+- **Batch LoRA Loading**: Multiple LoRAs loaded simultaneously
+- **Weight Scaling**: Dynamic weight adjustment per LoRA
+- **Memory Pooling**: Shared memory for LoRA computations
+- **Selective Loading**: Load only required LoRA components
 
 #### Processing Optimizations
 - **Attention Mechanisms**: SDP attention for speed
@@ -116,11 +166,13 @@ python /stable-diffusion-webui/webui.py \
 ### Supported Samplers
 
 #### Available Algorithms
-- **DPM++ 2M Karras**: High quality, moderate speed
+- **DPM++ 2M Karras**: High quality, moderate speed (recommended for realistic images)
 - **Euler a**: Fast, good for simple prompts
 - **DDIM**: Deterministic, reproducible results
 - **LMS**: Legacy sampler, stable results
 - **Heun**: High quality, slower processing
+- **DPM++ SDE Karras**: High quality, good for detailed images
+- **UniPC**: Fast, efficient sampling
 
 #### Sampler Characteristics
 - **Speed vs Quality**: Trade-off considerations

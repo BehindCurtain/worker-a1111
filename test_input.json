@@ -1,23 +1,63 @@
 {
   "input": {
-    "prompt": "a beautiful landscape with mountains and lake",
-    "negative_prompt": "blurry, bad quality, low resolution",
+    "prompt": "score_9, score_8_up, score_7_up, masterpiece, best quality, ultra-detailed, intricate details, ultra realism, realistic skin, photorealistic, photorealism, high definition, hyper resolution, absurdres, real life photo, raw, film grain. .BREAK. score_9, score_8_up, ultra realistic 8k cg, 1girl, asian woman, brown eyes, 30 years old, shy, innocent, average body, blush, round face, beautiful, thick thighs, black hair, straight hair, bob hair cut, innocent, pubic hair, black pubic hair, long pubes, large breasts, tight white t-shirt, bottomless, dark room, sun through window, sunlight on pubic hair, photo, ((sleeping)), unconscious, in bed, head on pillow, low angle, morning light, dramatic lighting, long straight pubic hair, sunlight on hairy pussy, mouth open, laying on her back, arms up",
+    "negative_prompt": "worst_quality, bad_quality, poorly_detailed, blured, blurry, extra_fingers, malformed_hands, deformed_feet, deformed face, low quality, worst quality, (deformed:1.3), cartoon, 3d, anime, bad anatomy, different eyes, fingers≠5, bad fingers, wear spliced with body, text, signature, ((spread legs))",
     "width": 512,
     "height": 512,
-    "steps": 25,
-    "cfg_scale": 7.5,
+    "steps": 24,
+    "cfg_scale": 4.5,
     "sampler_name": "DPM++ 2M Karras",
-    "seed": 42,
+    "seed": 797935397,
+    "clip_skip": 2,
     "checkpoint": {
-      "name": "deliberate_v6",
-      "url": "https://huggingface.co/XpucT/Deliberate/resolve/main/Deliberate_v6.safetensors"
+      "name": "Jib Mix Illustrious Realistic",
+      "url": "https://civitai.com/api/download/models/1590699?type=Model&format=SafeTensor&size=pruned&fp=fp16"
     },
     "loras": [
       {
-        "name": "landscape_enhancer",
-        "url": "https://civitai.com/api/download/models/example",
-        "scale": 0.8,
-        "hash": "optional_hash_for_verification"
+        "name": "Detail Tweaker XL",
+        "url": "https://civitai.com/api/download/models/135867?type=Model&format=SafeTensor",
+        "scale": 1.5
+      },
+      {
+        "name": "Hand Detail FLUX & XL",
+        "url": "https://civitai.com/api/download/models/294259?type=Model&format=SafeTensor",
+        "scale": 1.0
+      },
+      {
+        "name": "Boring Reality primaryV3.0",
+        "url": "https://civitai.com/api/download/models/348625?type=Model&format=SafeTensor",
+        "scale": 0.3
+      },
+      {
+        "name": "Boring Reality primaryV4.0",
+        "url": "https://civitai.com/api/download/models/348837?type=Model&format=SafeTensor",
+        "scale": 0.4
+      },
+      {
+        "name": "epiCRealismXL-KiSS Enhancer",
+        "url": "https://civitai.com/api/download/models/1051156?type=Model&format=SafeTensor",
+        "scale": 1.0
+      },
+      {
+        "name": "Dramatic Lighting Slider",
+        "url": "https://civitai.com/api/download/models/1242203?type=Model&format=SafeTensor",
+        "scale": 1.0
+      },
+      {
+        "name": "Pony Realism Slider",
+        "url": "https://civitai.com/api/download/models/1253021?type=Model&format=SafeTensor",
+        "scale": 3.0
+      },
+      {
+        "name": "Amateur style - slider (Pony)",
+        "url": "https://civitai.com/api/download/models/1594293?type=Model&format=SafeTensor",
+        "scale": 1.0
+      },
+      {
+        "name": "Real Skin Slider",
+        "url": "https://civitai.com/api/download/models/1681921?type=Model&format=SafeTensor",
+        "scale": 1.0
       }
     ]
   }
