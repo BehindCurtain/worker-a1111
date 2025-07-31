@@ -77,6 +77,14 @@ To enable persistent model caching, create a RunPod Network Volume. RunPod autom
 3. **Attach to Endpoint**: Advanced → Network Volume → Select your volume
 4. **Automatic Mount**: RunPod mounts at `/runpod-volume` automatically
 
+#### CivitAI API Key (Optional):
+For premium models and better download performance:
+1. **Get API Key**: Visit [CivitAI Settings](https://civitai.com/user/account) → API Keys
+2. **Add Environment Variable**: In RunPod endpoint settings → Environment Variables
+   - Key: `CIVITAI_API_KEY`
+   - Value: Your CivitAI API key
+3. **Benefits**: Access to premium models, higher download speeds, no rate limits
+
 ### Response Format
 
 The response includes the standard Automatic1111 output plus cache information:

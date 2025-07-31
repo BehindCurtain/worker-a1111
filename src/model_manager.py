@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import time
 
+# CivitAI API key from environment
+CIVITAI_API_KEY = os.getenv("CIVITAI_API_KEY")
+
 # Network volume paths (RunPod mounts network volumes at /runpod-volume)
 MODELS_BASE_PATH = "/runpod-volume/models"
 CHECKPOINTS_PATH = f"{MODELS_BASE_PATH}/checkpoints"
@@ -74,9 +77,17 @@ class ModelManager:
     def download_model(self, url: str, destination: str, expected_hash: Optional[str] = None) -> bool:
         """Download model from URL to destination"""
         try:
-            print(f"Downloading model from {url} to {destination}")
+            # Prepare headers for API authentication
+            headers = {}
             
-            response = requests.get(url, stream=True, timeout=300)
+            # Add CivitAI API key if available and URL is from CivitAI
+            if CIVITAI_API_KEY and "civitai.com" in url:
+                headers["Authorization"] = f"Bearer {CIVITAI_API_KEY}"
+                print(f"Using CivitAI API key for download: {url}")
+            else:
+                print(f"Downloading model from {url} to {destination}")
+            
+            response = requests.get(url, stream=True, timeout=300, headers=headers)
             response.raise_for_status()
             
             # Create destination directory if it doesn't exist
@@ -106,8 +117,29 @@ class ModelManager:
             print(f"Successfully downloaded model to {destination}")
             return True
             
+        except requests.exceptions.HTTPError as e:
+            # Handle specific HTTP errors
+            if e.response.status_code == 401:
+                print(f"Authentication failed for {url}. Check your CivitAI API key.")
+            elif e.response.status_code == 403:
+                print(f"Access forbidden for {url}. You may not have permission to download this model.")
+            elif e.response.status_code == 429:
+                print(f"Rate limit exceeded for {url}. Please try again later.")
+            else:
+                print(f"HTTP error downloading model from {url}: {e}")
+            
+            if os.path.exists(destination):
+                os.remove(destination)
+            return False
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Network error downloading model from {url}: {e}")
+            if os.path.exists(destination):
+                os.remove(destination)
+            return False
+            
         except Exception as e:
-            print(f"Error downloading model from {url}: {e}")
+            print(f"Unexpected error downloading model from {url}: {e}")
             if os.path.exists(destination):
                 os.remove(destination)
             return False
