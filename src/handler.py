@@ -22,8 +22,11 @@ def wait_for_service(url):
 
     while True:
         try:
-            requests.get(url, timeout=120)
-            return
+            response = requests.get(url, timeout=120)
+            if response.status_code == 200:
+                return
+            else:
+                print(f"Service returned status {response.status_code}, retrying...")
         except requests.exceptions.RequestException:
             retries += 1
 
@@ -36,13 +39,128 @@ def wait_for_service(url):
         time.sleep(0.2)
 
 
+def wait_for_txt2img_service():
+    """
+    Check if the txt2img endpoint is ready to receive requests.
+    """
+    print("Checking txt2img endpoint availability...")
+    retries = 0
+    
+    while True:
+        try:
+            # Test with a minimal request to see if endpoint exists
+            test_request = {
+                "prompt": "test",
+                "steps": 1,
+                "width": 64,
+                "height": 64
+            }
+            response = automatic_session.post(
+                url=f'{LOCAL_URL}/txt2img',
+                json=test_request,
+                timeout=30
+            )
+            
+            # If we get any response (even error), endpoint exists
+            if response.status_code in [200, 400, 422]:
+                print("txt2img endpoint is ready")
+                return
+            elif response.status_code == 404:
+                retries += 1
+                if retries % 15 == 0:
+                    print("txt2img endpoint not found (404), retrying...")
+            else:
+                print(f"txt2img endpoint returned status {response.status_code}, retrying...")
+                
+        except requests.exceptions.RequestException as e:
+            retries += 1
+            if retries % 15 == 0:
+                print(f"txt2img endpoint not ready: {e}")
+        except Exception as err:
+            print("Error checking txt2img endpoint: ", err)
+
+        time.sleep(0.5)
+
+
+def check_model_status():
+    """
+    Check current model status and available models.
+    """
+    try:
+        # Get current model info
+        response = automatic_session.get(f'{LOCAL_URL}/options', timeout=30)
+        if response.status_code == 200:
+            options = response.json()
+            current_model = options.get('sd_model_checkpoint', 'Unknown')
+            print(f"Current model: {current_model}")
+            
+        # Get available models
+        response = automatic_session.get(f'{LOCAL_URL}/sd-models', timeout=30)
+        if response.status_code == 200:
+            models = response.json()
+            print(f"Available models: {len(models)} models found")
+            for model in models[:3]:  # Show first 3 models
+                print(f"  - {model.get('title', 'Unknown')}")
+            return True
+        else:
+            print(f"Failed to get model list: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"Error checking model status: {e}")
+        return False
+
+
 def run_inference(inference_request):
     """
     Run inference on a request.
     """
-    response = automatic_session.post(url=f'{LOCAL_URL}/txt2img',
-                                      json=inference_request, timeout=600)
-    return response.json()
+    try:
+        print(f"Sending inference request to {LOCAL_URL}/txt2img")
+        print(f"Request parameters: steps={inference_request.get('steps')}, "
+              f"size={inference_request.get('width')}x{inference_request.get('height')}, "
+              f"sampler={inference_request.get('sampler_name')}")
+        
+        response = automatic_session.post(url=f'{LOCAL_URL}/txt2img',
+                                          json=inference_request, timeout=600)
+        
+        print(f"Response status: {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            print("✓ Inference completed successfully")
+            return result
+        elif response.status_code == 404:
+            print("❌ 404 Error: txt2img endpoint not found")
+            print("This usually means:")
+            print("  1. WebUI API is not fully initialized")
+            print("  2. --api flag is missing from WebUI startup")
+            print("  3. Model is not loaded properly")
+            
+            # Try to get more info about available endpoints
+            try:
+                info_response = automatic_session.get(f'{LOCAL_URL}/../docs', timeout=10)
+                if info_response.status_code == 200:
+                    print("API docs are available, but txt2img endpoint is missing")
+                else:
+                    print("API docs are also not available")
+            except:
+                print("Cannot access API documentation")
+            
+            raise Exception(f"txt2img endpoint returned 404. WebUI API may not be properly initialized.")
+        else:
+            print(f"❌ HTTP Error {response.status_code}: {response.text[:200]}")
+            response.raise_for_status()
+            
+    except requests.exceptions.Timeout:
+        print("❌ Request timeout (600s exceeded)")
+        raise Exception("Inference request timed out after 600 seconds")
+    except requests.exceptions.ConnectionError as e:
+        print(f"❌ Connection error: {e}")
+        raise Exception("Cannot connect to WebUI API service")
+    except Exception as e:
+        print(f"❌ Inference error: {e}")
+        raise
 
 
 def prepare_inference_request(input_data):
@@ -65,7 +183,7 @@ def prepare_inference_request(input_data):
     standard_params = [
         "prompt", "negative_prompt", "steps", "cfg_scale", "width", "height",
         "sampler_name", "seed", "batch_size", "n_iter", "restore_faces",
-        "tiling", "do_not_save_samples", "do_not_save_grid"
+        "tiling", "do_not_save_samples", "do_not_save_grid", "clip_skip"
     ]
     
     for param in standard_params:
@@ -129,6 +247,25 @@ def handler(event):
 
 
 if __name__ == "__main__":
+    print("Starting WebUI API readiness checks...")
+    
+    # Step 1: Wait for basic API service
+    print("Step 1: Checking basic API service...")
     wait_for_service(url=f'{LOCAL_URL}/sd-models')
-    print("WebUI API Service is ready. Starting RunPod Serverless...")
+    print("✓ Basic API service is ready")
+    
+    # Step 2: Check model status
+    print("Step 2: Checking model status...")
+    model_ready = check_model_status()
+    if not model_ready:
+        print("⚠ Warning: Model status check failed, but continuing...")
+    else:
+        print("✓ Model status check passed")
+    
+    # Step 3: Wait for txt2img endpoint
+    print("Step 3: Checking txt2img endpoint...")
+    wait_for_txt2img_service()
+    print("✓ txt2img endpoint is ready")
+    
+    print("🚀 All WebUI API services are ready. Starting RunPod Serverless...")
     runpod.serverless.start({"handler": handler})

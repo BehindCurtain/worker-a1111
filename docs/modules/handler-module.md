@@ -38,8 +38,11 @@ def wait_for_service(url):
     retries = 0
     while True:
         try:
-            requests.get(url, timeout=120)
-            return
+            response = requests.get(url, timeout=120)
+            if response.status_code == 200:
+                return
+            else:
+                print(f"Service returned status {response.status_code}, retrying...")
         except requests.exceptions.RequestException:
             retries += 1
             if retries % 15 == 0:
@@ -50,7 +53,7 @@ def wait_for_service(url):
 ```
 
 #### Özellikler
-- **Infinite Loop**: Servis hazır olana kadar sürekli kontrol
+- **Status Code Validation**: 200 OK kontrolü
 - **Timeout**: 120 saniye request timeout
 - **Logging**: Her 15 retry'da bir log mesajı
 - **Sleep Interval**: 0.2 saniye bekleme süresi
@@ -60,6 +63,89 @@ def wait_for_service(url):
 - Container startup sırasında WebUI API hazırlık kontrolü
 - Service health check operations
 - Dependency service validation
+
+### 1.1. wait_for_txt2img_service()
+
+#### Amaç
+txt2img endpoint'inin özellikle hazır olmasını bekler ve 404 hatalarını önler.
+
+#### Parametreler
+- Parametre almaz (LOCAL_URL global değişkenini kullanır)
+
+#### İşleyiş
+```python
+def wait_for_txt2img_service():
+    print("Checking txt2img endpoint availability...")
+    retries = 0
+    
+    while True:
+        try:
+            test_request = {
+                "prompt": "test",
+                "steps": 1,
+                "width": 64,
+                "height": 64
+            }
+            response = automatic_session.post(
+                url=f'{LOCAL_URL}/txt2img',
+                json=test_request,
+                timeout=30
+            )
+            
+            if response.status_code in [200, 400, 422]:
+                print("txt2img endpoint is ready")
+                return
+            elif response.status_code == 404:
+                retries += 1
+                if retries % 15 == 0:
+                    print("txt2img endpoint not found (404), retrying...")
+```
+
+#### Özellikler
+- **Endpoint Specific Check**: txt2img endpoint'i özel kontrolü
+- **Minimal Test Request**: Küçük test isteği ile endpoint varlığı kontrolü
+- **404 Detection**: 404 hatalarını özel olarak handle eder
+- **Ready State Detection**: 200, 400, 422 status kodlarını "hazır" kabul eder
+- **Timeout**: 30 saniye test request timeout
+
+### 1.2. check_model_status()
+
+#### Amaç
+Mevcut model durumunu kontrol eder ve kullanılabilir modelleri listeler.
+
+#### Parametreler
+- Parametre almaz
+
+#### Return
+- `bool`: Model durumu kontrolü başarılı ise True
+
+#### İşleyiş
+```python
+def check_model_status():
+    try:
+        # Get current model info
+        response = automatic_session.get(f'{LOCAL_URL}/options', timeout=30)
+        if response.status_code == 200:
+            options = response.json()
+            current_model = options.get('sd_model_checkpoint', 'Unknown')
+            print(f"Current model: {current_model}")
+            
+        # Get available models
+        response = automatic_session.get(f'{LOCAL_URL}/sd-models', timeout=30)
+        if response.status_code == 200:
+            models = response.json()
+            print(f"Available models: {len(models)} models found")
+            for model in models[:3]:
+                print(f"  - {model.get('title', 'Unknown')}")
+            return True
+```
+
+#### Özellikler
+- **Current Model Detection**: Aktif model bilgisi
+- **Available Models List**: Kullanılabilir modeller listesi
+- **Model Count**: Toplam model sayısı
+- **Sample Display**: İlk 3 model'i örnek olarak gösterir
+- **Error Tolerance**: Hata durumunda False döndürür
 
 ### 2. run_inference(inference_request)
 
@@ -72,25 +158,123 @@ Automatic1111 WebUI API'sine inference request gönderir ve response alır.
 #### İşleyiş
 ```python
 def run_inference(inference_request):
-    response = automatic_session.post(url=f'{LOCAL_URL}/txt2img',
-                                      json=inference_request, timeout=600)
-    return response.json()
+    try:
+        print(f"Sending inference request to {LOCAL_URL}/txt2img")
+        print(f"Request parameters: steps={inference_request.get('steps')}, "
+              f"size={inference_request.get('width')}x{inference_request.get('height')}, "
+              f"sampler={inference_request.get('sampler_name')}")
+        
+        response = automatic_session.post(url=f'{LOCAL_URL}/txt2img',
+                                          json=inference_request, timeout=600)
+        
+        print(f"Response status: {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            print("✓ Inference completed successfully")
+            return result
+        elif response.status_code == 404:
+            print("❌ 404 Error: txt2img endpoint not found")
+            raise Exception(f"txt2img endpoint returned 404. WebUI API may not be properly initialized.")
+        else:
+            print(f"❌ HTTP Error {response.status_code}: {response.text[:200]}")
+            response.raise_for_status()
 ```
 
 #### Özellikler
+- **Enhanced Logging**: Detaylı request ve response logging
+- **Status Code Validation**: HTTP status code kontrolü
+- **404 Error Handling**: 404 hatalarını özel olarak handle eder
+- **Error Diagnostics**: Hata durumunda detaylı bilgi sağlar
 - **Session Reuse**: Global session object kullanımı
-- **JSON Request**: Automatic JSON serialization
 - **Long Timeout**: 600 saniye timeout (image generation için)
-- **Direct Response**: JSON response'u doğrudan döndürme
-- **Error Propagation**: HTTP errors otomatik propagation
+- **Exception Handling**: Timeout, connection ve HTTP errors
+
+#### Error Handling
+- **404 Errors**: WebUI API initialization sorunları
+- **Timeout Errors**: 600 saniye aşımı durumları
+- **Connection Errors**: Network bağlantı sorunları
+- **HTTP Errors**: Diğer HTTP status code hataları
 
 #### Request Flow
-1. **Input Validation**: Implicit through API endpoint
+1. **Request Logging**: Request parametrelerini logla
 2. **HTTP POST**: Session-based request execution
-3. **Response Processing**: JSON deserialization
-4. **Output Return**: Direct response passthrough
+3. **Status Validation**: HTTP status code kontrolü
+4. **Success Handling**: 200 OK durumunda JSON parse
+5. **Error Handling**: Hata durumlarında detaylı logging
+6. **Exception Raising**: Uygun exception fırlatma
 
-### 3. handler(event)
+### 3. prepare_inference_request(input_data)
+
+#### Amaç
+Input data'yı WebUI API format'ına dönüştürür ve model management entegrasyonu sağlar.
+
+#### Parametreler
+- `input_data` (dict): RunPod event'inden gelen raw input data
+
+#### Return
+- `dict`: WebUI API için hazırlanmış inference request
+
+#### İşleyiş
+```python
+def prepare_inference_request(input_data):
+    # Extract model information
+    checkpoint_info = input_data.get("checkpoint")
+    loras = input_data.get("loras", [])
+    
+    # Prepare models (download if needed)
+    checkpoint_path, lora_paths = model_manager.prepare_models_for_request(
+        checkpoint_info, loras
+    )
+    
+    # Build the inference request
+    inference_request = {}
+    
+    # Copy standard parameters
+    standard_params = [
+        "prompt", "negative_prompt", "steps", "cfg_scale", "width", "height",
+        "sampler_name", "seed", "batch_size", "n_iter", "restore_faces",
+        "tiling", "do_not_save_samples", "do_not_save_grid", "clip_skip"
+    ]
+    
+    for param in standard_params:
+        if param in input_data:
+            inference_request[param] = input_data[param]
+    
+    # Handle prompt with LoRA integration
+    base_prompt = input_data.get("prompt", "")
+    if lora_paths:
+        enhanced_prompt = model_manager.build_lora_prompt(base_prompt, lora_paths)
+        inference_request["prompt"] = enhanced_prompt
+        print(f"Enhanced prompt with LoRAs: {enhanced_prompt}")
+    
+    # Handle checkpoint switching if needed
+    if checkpoint_path and checkpoint_info:
+        print(f"Using checkpoint: {checkpoint_info['name']} at {checkpoint_path}")
+        
+        if "override_settings" not in inference_request:
+            inference_request["override_settings"] = {}
+        
+        inference_request["override_settings"]["sd_model_checkpoint"] = checkpoint_info["name"]
+    
+    return inference_request
+```
+
+#### Özellikler
+- **Model Management Integration**: model_manager ile entegrasyon
+- **LoRA Support**: LoRA model'leri otomatik download ve prompt enhancement
+- **Checkpoint Handling**: Checkpoint switching desteği
+- **Parameter Mapping**: Standard parametreleri otomatik kopyalama
+- **CLIP Skip Support**: clip_skip parametresi desteği
+- **Override Settings**: WebUI API override_settings kullanımı
+
+#### Supported Parameters
+- **Basic**: prompt, negative_prompt, steps, cfg_scale, width, height
+- **Advanced**: sampler_name, seed, batch_size, n_iter, clip_skip
+- **Options**: restore_faces, tiling, do_not_save_samples, do_not_save_grid
+- **Models**: checkpoint (object), loras (array)
+
+### 4. handler(event)
 
 #### Amaç
 RunPod serverless platform için ana entry point fonksiyonu.
@@ -98,28 +282,103 @@ RunPod serverless platform için ana entry point fonksiyonu.
 #### Parametreler
 - `event` (dict): RunPod event object containing input data
 
+#### Return
+- `dict`: Inference result with cache info
+
 #### İşleyiş
 ```python
 def handler(event):
-    json = run_inference(event["input"])
-    return json
+    try:
+        # Prepare inference request with model management
+        inference_request = prepare_inference_request(event["input"])
+        
+        # Run inference
+        result = run_inference(inference_request)
+        
+        # Add cache statistics to response for debugging
+        cache_stats = model_manager.get_cache_stats()
+        result["cache_info"] = {
+            "checkpoints_cached": cache_stats["checkpoints"]["count"],
+            "loras_cached": cache_stats["loras"]["count"],
+            "total_cache_size_mb": (cache_stats["checkpoints"]["total_size"] + 
+                                  cache_stats["loras"]["total_size"]) / (1024 * 1024)
+        }
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error in handler: {e}")
+        return {
+            "error": str(e),
+            "message": "Failed to process inference request"
+        }
 ```
 
 #### Özellikler
-- **Event Processing**: RunPod event structure parsing
-- **Input Extraction**: event["input"] field extraction
-- **Inference Delegation**: run_inference fonksiyonuna delegation
-- **Direct Return**: Response'u olduğu gibi döndürme
+- **Enhanced Error Handling**: Try-catch ile error handling
+- **Model Management**: prepare_inference_request entegrasyonu
+- **Cache Statistics**: Response'a cache bilgisi ekleme
+- **Debug Information**: Cache stats ile debugging desteği
+- **Error Response**: Standardized error response format
 
 #### Integration Points
 - **RunPod Platform**: Serverless event handling
+- **Model Manager**: Model download ve management
 - **Inference Engine**: WebUI API integration
-- **Error Handling**: Implicit through underlying functions
+- **Cache System**: Model cache statistics
+
+## Startup Sequence
+
+### Main Function (__main__)
+
+#### Amaç
+WebUI API'nin tam olarak hazır olmasını sağlayan multi-step startup sequence.
+
+#### İşleyiş
+```python
+if __name__ == "__main__":
+    print("Starting WebUI API readiness checks...")
+    
+    # Step 1: Wait for basic API service
+    print("Step 1: Checking basic API service...")
+    wait_for_service(url=f'{LOCAL_URL}/sd-models')
+    print("✓ Basic API service is ready")
+    
+    # Step 2: Check model status
+    print("Step 2: Checking model status...")
+    model_ready = check_model_status()
+    if not model_ready:
+        print("⚠ Warning: Model status check failed, but continuing...")
+    else:
+        print("✓ Model status check passed")
+    
+    # Step 3: Wait for txt2img endpoint
+    print("Step 3: Checking txt2img endpoint...")
+    wait_for_txt2img_service()
+    print("✓ txt2img endpoint is ready")
+    
+    print("🚀 All WebUI API services are ready. Starting RunPod Serverless...")
+    runpod.serverless.start({"handler": handler})
+```
+
+#### Startup Steps
+1. **Basic API Check**: `/sd-models` endpoint readiness
+2. **Model Status Check**: Current model ve available models kontrolü
+3. **txt2img Endpoint Check**: txt2img endpoint'i özel kontrolü
+4. **RunPod Start**: Serverless handler başlatma
+
+#### Error Tolerance
+- **Model Status Failure**: Warning ile devam eder
+- **API Service Failure**: Infinite retry ile bekler
+- **txt2img Failure**: Infinite retry ile bekler
 
 ## Modül İlişkileri
 
 ### Internal Dependencies
 - **wait_for_service**: Service readiness validation
+- **wait_for_txt2img_service**: txt2img endpoint validation
+- **check_model_status**: Model status validation
+- **prepare_inference_request**: Request preparation
 - **run_inference**: Core inference processing
 - **handler**: Platform integration layer
 
@@ -127,12 +386,13 @@ def handler(event):
 - **runpod**: Serverless platform SDK
 - **requests**: HTTP client library
 - **time**: Sleep ve timing operations
+- **model_manager**: Model download ve management
 
 ### Data Flow
 ```
-RunPod Event → handler() → run_inference() → WebUI API
-                ↓
-RunPod Response ← JSON Response ← HTTP Response
+RunPod Event → handler() → prepare_inference_request() → run_inference() → WebUI API
+                ↓                        ↓                      ↓
+RunPod Response ← Cache Info ← Model Management ← JSON Response ← HTTP Response
 ```
 
 ## Configuration Management
