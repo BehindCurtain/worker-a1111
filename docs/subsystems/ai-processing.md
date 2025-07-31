@@ -33,9 +33,9 @@ python /stable-diffusion-webui/webui.py \
   --skip-python-version-check \  # Environment compatibility
   --skip-torch-cuda-test \       # CUDA validation skip
   --skip-install \               # Pre-installed dependencies
-  --ckpt-dir /workspace/models/checkpoints \    # Checkpoint directory
-  --lora-dir /workspace/models/loras \          # LoRA directory
-  --embeddings-dir /workspace/models/embeddings \ # Embeddings directory
+  --ckpt-dir /runpod-volume/models/checkpoints \    # Checkpoint directory
+  --lora-dir /runpod-volume/models/loras \          # LoRA directory
+  --embeddings-dir /runpod-volume/models/embeddings \ # Embeddings directory
   --ckpt /model.safetensors \    # Default model path
   --opt-sdp-attention \          # Attention optimization
   --disable-safe-unpickle \      # Performance optimization
@@ -48,10 +48,11 @@ python /stable-diffusion-webui/webui.py \
 ```
 
 #### Network Volume Integration
-- **Checkpoint Directory**: `/workspace/models/checkpoints` - Persistent checkpoint storage
-- **LoRA Directory**: `/workspace/models/loras` - LoRA model cache
-- **Embeddings Directory**: `/workspace/models/embeddings` - Textual inversion storage
-- **Cache Registry**: `/workspace/models/cache_registry.json` - Model metadata tracking
+- **Checkpoint Directory**: `/runpod-volume/models/checkpoints` - Persistent checkpoint storage
+- **LoRA Directory**: `/runpod-volume/models/loras` - LoRA model cache
+- **Embeddings Directory**: `/runpod-volume/models/embeddings` - Textual inversion storage
+- **Cache Registry**: `/runpod-volume/models/cache_registry.json` - Model metadata tracking
+- **Mount Point**: RunPod automatically mounts network volumes at `/runpod-volume`
 
 #### Optimization Flags
 - **xformers**: Memory-efficient attention mechanism

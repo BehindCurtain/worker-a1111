@@ -37,8 +37,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 COPY --from=download /model.safetensors /model.safetensors
 
-# Create network volume mount point
-RUN mkdir -p /workspace/models/checkpoints /workspace/models/loras /workspace/models/embeddings
+# Create network volume mount point (RunPod mounts at /runpod-volume)
+RUN mkdir -p /runpod-volume/models/checkpoints /runpod-volume/models/loras /runpod-volume/models/embeddings
 
 # install dependencies
 COPY requirements.txt .

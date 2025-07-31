@@ -57,16 +57,25 @@ Here's an example payload to generate an image with LoRA support:
 
 ### Network Volume Setup
 
-To enable persistent model caching, mount a RunPod Network Volume to `/workspace/models`:
+To enable persistent model caching, create a RunPod Network Volume. RunPod automatically mounts network volumes at `/runpod-volume`:
 
 ```bash
 # RunPod Network Volume structure
-/workspace/models/
+/runpod-volume/models/
 ├── checkpoints/     # Stable Diffusion checkpoints
 ├── loras/          # LoRA models
 ├── embeddings/     # Textual inversions
 └── cache_registry.json  # Model metadata cache
 ```
+
+#### Setup Steps:
+1. **Create Network Volume**: Navigate to Storage → New Network Volume
+2. **Configure Volume**: 
+   - Name: `a1111-models-cache`
+   - Size: 100GB (expandable)
+   - Datacenter: Same as your endpoint
+3. **Attach to Endpoint**: Advanced → Network Volume → Select your volume
+4. **Automatic Mount**: RunPod mounts at `/runpod-volume` automatically
 
 ### Response Format
 

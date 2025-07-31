@@ -19,7 +19,8 @@ import time
 
 ### Global Configuration
 ```python
-MODELS_BASE_PATH = "/workspace/models"
+# Network volume paths (RunPod mounts network volumes at /runpod-volume)
+MODELS_BASE_PATH = "/runpod-volume/models"
 CHECKPOINTS_PATH = f"{MODELS_BASE_PATH}/checkpoints"
 LORAS_PATH = f"{MODELS_BASE_PATH}/loras"
 EMBEDDINGS_PATH = f"{MODELS_BASE_PATH}/embeddings"
