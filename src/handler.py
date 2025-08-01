@@ -157,6 +157,122 @@ def clean_webui_cache():
     print("✓ Cache cleanup completed")
 
 
+def validate_request(input_data):
+    """
+    Validate that request contains required checkpoint information.
+    """
+    if not input_data.get("checkpoint"):
+        raise ValueError("Checkpoint is required in request")
+    
+    checkpoint_info = input_data["checkpoint"]
+    if not checkpoint_info.get("name") or not checkpoint_info.get("url"):
+        raise ValueError("Checkpoint must have 'name' and 'url' fields")
+
+
+def get_current_model():
+    """
+    Get the currently loaded model name.
+    """
+    try:
+        response = automatic_session.get(f'{LOCAL_URL}/options', timeout=30)
+        if response.status_code == 200:
+            options = response.json()
+            return options.get('sd_model_checkpoint', '')
+        else:
+            print(f"Failed to get current model: {response.status_code}")
+            return ''
+    except Exception as e:
+        print(f"Error getting current model: {e}")
+        return ''
+
+
+def change_checkpoint(checkpoint_name):
+    """
+    Change the active checkpoint in WebUI.
+    """
+    print(f"🔄 Changing checkpoint to: {checkpoint_name}")
+    try:
+        change_request = {"sd_model_checkpoint": checkpoint_name}
+        response = automatic_session.post(f'{LOCAL_URL}/options', json=change_request, timeout=60)
+        
+        if response.status_code == 200:
+            print(f"✓ Checkpoint change request sent successfully")
+            return True
+        else:
+            print(f"❌ Failed to change checkpoint: HTTP {response.status_code}")
+            print(f"Response: {response.text[:200]}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error changing checkpoint: {e}")
+        return False
+
+
+def wait_for_model_loading(timeout=120):
+    """
+    Wait for model loading to complete by monitoring progress.
+    """
+    print("⏳ Waiting for model loading to complete...")
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        try:
+            # Check progress endpoint
+            progress_response = automatic_session.get(f'{LOCAL_URL}/progress', timeout=10)
+            if progress_response.status_code == 200:
+                progress_data = progress_response.json()
+                progress = progress_data.get('progress', 0)
+                eta = progress_data.get('eta_relative', 0)
+                
+                if progress > 0:
+                    print(f"📊 Model loading progress: {progress:.1%}, ETA: {eta:.1f}s")
+                
+                # If progress is 0 and no ETA, model loading might be complete
+                if progress == 0 and eta == 0:
+                    # Double-check by testing txt2img endpoint
+                    try:
+                        test_request = {
+                            "prompt": "test",
+                            "steps": 1,
+                            "width": 64,
+                            "height": 64
+                        }
+                        test_response = automatic_session.post(
+                            url=f'{LOCAL_URL}/txt2img',
+                            json=test_request,
+                            timeout=10
+                        )
+                        
+                        if test_response.status_code in [200, 400, 422]:
+                            print("✓ Model loading completed - txt2img endpoint is ready")
+                            return True
+                            
+                    except Exception:
+                        pass  # Continue waiting
+            
+            time.sleep(2)
+            
+        except Exception as e:
+            print(f"⚠ Warning: Could not check progress: {e}")
+            time.sleep(2)
+    
+    print(f"⚠ Model loading timeout after {timeout} seconds")
+    return False
+
+
+def verify_checkpoint_loaded(expected_checkpoint):
+    """
+    Verify that the expected checkpoint is actually loaded.
+    """
+    current_model = get_current_model()
+    if expected_checkpoint in current_model or current_model in expected_checkpoint:
+        print(f"✓ Checkpoint verified: {current_model}")
+        return True
+    else:
+        print(f"❌ Checkpoint mismatch - Expected: {expected_checkpoint}, Current: {current_model}")
+        return False
+
+
 def run_inference(inference_request):
     """
     Run inference on a request with enhanced recovery mechanism for 404 errors.
@@ -286,11 +402,14 @@ def prepare_inference_request(input_data):
     """
     Prepare inference request with model management and LoRA support.
     """
+    # 1. Validate request
+    validate_request(input_data)
+    
     # Extract model information
     checkpoint_info = input_data.get("checkpoint")
     loras = input_data.get("loras", [])
     
-    # Prepare models (download if needed)
+    # 2. Prepare models (download if needed)
     checkpoint_path, lora_paths, models_downloaded = model_manager.prepare_models_for_request(
         checkpoint_info, loras
     )
@@ -310,7 +429,33 @@ def prepare_inference_request(input_data):
             print(f"⚠ Warning: WebUI API health check failed after model downloads: {e}")
             print("⚠ Continuing anyway, but inference may fail...")
     
-    # Build the inference request
+    # 3. Handle checkpoint switching
+    if checkpoint_info:
+        current_model = get_current_model()
+        target_checkpoint = checkpoint_info["name"]
+        
+        # Check if we need to change checkpoint
+        if target_checkpoint not in current_model and current_model not in target_checkpoint:
+            print(f"🔄 Current model: {current_model}")
+            print(f"🎯 Target checkpoint: {target_checkpoint}")
+            
+            # Change checkpoint
+            if change_checkpoint(target_checkpoint):
+                # Wait for model loading to complete
+                if wait_for_model_loading():
+                    # Verify checkpoint was loaded
+                    if verify_checkpoint_loaded(target_checkpoint):
+                        print("✅ Checkpoint change completed successfully")
+                    else:
+                        print("⚠ Warning: Checkpoint verification failed, but continuing...")
+                else:
+                    print("⚠ Warning: Model loading timeout, but continuing...")
+            else:
+                raise Exception(f"Failed to change checkpoint to {target_checkpoint}")
+        else:
+            print(f"✓ Checkpoint already loaded: {current_model}")
+    
+    # 4. Build the inference request
     inference_request = {}
     
     # Copy standard parameters
@@ -331,18 +476,8 @@ def prepare_inference_request(input_data):
         inference_request["prompt"] = enhanced_prompt
         print(f"Enhanced prompt with LoRAs: {enhanced_prompt}")
     
-    # Handle checkpoint switching if needed
-    if checkpoint_path and checkpoint_info:
-        # Note: Checkpoint switching requires WebUI API restart or model reload
-        # For now, we'll log the checkpoint info
-        print(f"Using checkpoint: {checkpoint_info['name']} at {checkpoint_path}")
-        
-        # Add checkpoint info to override_settings if supported
-        if "override_settings" not in inference_request:
-            inference_request["override_settings"] = {}
-        
-        # Try to set the checkpoint (this may not work without WebUI restart)
-        inference_request["override_settings"]["sd_model_checkpoint"] = checkpoint_info["name"]
+    # Note: We no longer use override_settings for checkpoint switching
+    # as we handle it explicitly above
     
     return inference_request
 

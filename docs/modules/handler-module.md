@@ -144,6 +144,60 @@ Mevcut model durumunu kontrol eder ve kullanılabilir modelleri listeler.
 #### Return
 - `bool`: Model durumu kontrolü başarılı ise True
 
+### 1.3. validate_request(input_data)
+
+#### Amaç
+Gelen request'in gerekli checkpoint bilgilerini içerdiğini doğrular.
+
+#### Parametreler
+- `input_data` (dict): Gelen request verisi
+
+#### İşleyiş
+- Checkpoint varlığını kontrol eder
+- Checkpoint'in name ve url alanlarını doğrular
+- Eksik bilgi durumunda ValueError fırlatır
+
+### 1.4. get_current_model()
+
+#### Amaç
+WebUI API'den mevcut yüklü model ismini alır.
+
+#### Return
+- `string`: Mevcut model ismi
+
+### 1.5. change_checkpoint(checkpoint_name)
+
+#### Amaç
+WebUI API'de aktif checkpoint'i değiştirir.
+
+#### Parametreler
+- `checkpoint_name` (string): Hedef checkpoint ismi
+
+#### Return
+- `bool`: Checkpoint değişim isteği başarılı ise True
+
+### 1.6. wait_for_model_loading(timeout=120)
+
+#### Amaç
+Model yükleme işleminin tamamlanmasını progress endpoint'i ile takip eder.
+
+#### Parametreler
+- `timeout` (int): Maksimum bekleme süresi (saniye)
+
+#### Return
+- `bool`: Model yükleme başarılı ise True
+
+### 1.7. verify_checkpoint_loaded(expected_checkpoint)
+
+#### Amaç
+Beklenen checkpoint'in gerçekten yüklendiğini doğrular.
+
+#### Parametreler
+- `expected_checkpoint` (string): Beklenen checkpoint ismi
+
+#### Return
+- `bool`: Checkpoint doğrulama başarılı ise True
+
 #### İşleyiş
 ```python
 def check_model_status():
@@ -281,7 +335,7 @@ def clean_webui_cache():
 ### 3. prepare_inference_request(input_data)
 
 #### Amaç
-Input data'yı WebUI API format'ına dönüştürür ve model management entegrasyonu sağlar.
+Input data'yı WebUI API format'ına dönüştürür ve güvenli checkpoint değişimi ile model management entegrasyonu sağlar.
 
 #### Parametreler
 - `input_data` (dict): RunPod event'inden gelen raw input data
@@ -292,11 +346,14 @@ Input data'yı WebUI API format'ına dönüştürür ve model management entegra
 #### İşleyiş
 ```python
 def prepare_inference_request(input_data):
+    # 1. Validate request
+    validate_request(input_data)
+    
     # Extract model information
     checkpoint_info = input_data.get("checkpoint")
     loras = input_data.get("loras", [])
     
-    # Prepare models (download if needed)
+    # 2. Prepare models (download if needed)
     checkpoint_path, lora_paths, models_downloaded = model_manager.prepare_models_for_request(
         checkpoint_info, loras
     )
@@ -316,7 +373,33 @@ def prepare_inference_request(input_data):
             print(f"⚠ Warning: WebUI API health check failed after model downloads: {e}")
             print("⚠ Continuing anyway, but inference may fail...")
     
-    # Build the inference request
+    # 3. Handle checkpoint switching
+    if checkpoint_info:
+        current_model = get_current_model()
+        target_checkpoint = checkpoint_info["name"]
+        
+        # Check if we need to change checkpoint
+        if target_checkpoint not in current_model and current_model not in target_checkpoint:
+            print(f"🔄 Current model: {current_model}")
+            print(f"🎯 Target checkpoint: {target_checkpoint}")
+            
+            # Change checkpoint
+            if change_checkpoint(target_checkpoint):
+                # Wait for model loading to complete
+                if wait_for_model_loading():
+                    # Verify checkpoint was loaded
+                    if verify_checkpoint_loaded(target_checkpoint):
+                        print("✅ Checkpoint change completed successfully")
+                    else:
+                        print("⚠ Warning: Checkpoint verification failed, but continuing...")
+                else:
+                    print("⚠ Warning: Model loading timeout, but continuing...")
+            else:
+                raise Exception(f"Failed to change checkpoint to {target_checkpoint}")
+        else:
+            print(f"✓ Checkpoint already loaded: {current_model}")
+    
+    # 4. Build the inference request
     inference_request = {}
     
     # Copy standard parameters
@@ -337,35 +420,40 @@ def prepare_inference_request(input_data):
         inference_request["prompt"] = enhanced_prompt
         print(f"Enhanced prompt with LoRAs: {enhanced_prompt}")
     
-    # Handle checkpoint switching if needed
-    if checkpoint_path and checkpoint_info:
-        print(f"Using checkpoint: {checkpoint_info['name']} at {checkpoint_path}")
-        
-        if "override_settings" not in inference_request:
-            inference_request["override_settings"] = {}
-        
-        inference_request["override_settings"]["sd_model_checkpoint"] = checkpoint_info["name"]
+    # Note: We no longer use override_settings for checkpoint switching
+    # as we handle it explicitly above
     
     return inference_request
 ```
 
-#### Özellikler
+#### Yeni Özellikler (Güncellenmiş)
+- **Request Validation**: Checkpoint zorunluluğu kontrolü
+- **Güvenli Checkpoint Değişimi**: API-based checkpoint switching
+- **Model Loading Monitoring**: Progress endpoint ile takip
+- **Checkpoint Verification**: Model değişiminin doğrulanması
+- **Graceful Error Handling**: Checkpoint değişim hatalarında exception
+- **Current Model Detection**: Mevcut model kontrolü ile gereksiz değişimleri önleme
 - **Model Management Integration**: model_manager ile entegrasyon
 - **LoRA Support**: LoRA model'leri otomatik download ve prompt enhancement
-- **Checkpoint Handling**: Checkpoint switching desteği
 - **Parameter Mapping**: Standard parametreleri otomatik kopyalama
 - **CLIP Skip Support**: clip_skip parametresi desteği
-- **Override Settings**: WebUI API override_settings kullanımı
 - **Model Download Detection**: Yeni model indirme durumu takibi
 - **API Stability Check**: Model indirme sonrası API sağlık kontrolü
 - **Registry Update Wait**: Model registry güncellemesi için bekleme
-- **Graceful Degradation**: Sağlık kontrolü başarısız olsa bile devam etme
+
+#### Checkpoint Değişim Akışı
+1. **Current Model Check**: Mevcut yüklü model kontrolü
+2. **Target Comparison**: Hedef checkpoint ile karşılaştırma
+3. **Change Request**: API üzerinden checkpoint değişim isteği
+4. **Loading Monitor**: Model yükleme sürecini progress ile takip
+5. **Verification**: Checkpoint'in başarıyla yüklendiğini doğrulama
+6. **Error Handling**: Başarısızlık durumunda exception fırlatma
 
 #### Supported Parameters
 - **Basic**: prompt, negative_prompt, steps, cfg_scale, width, height
 - **Advanced**: sampler_name, seed, batch_size, n_iter, clip_skip
 - **Options**: restore_faces, tiling, do_not_save_samples, do_not_save_grid
-- **Models**: checkpoint (object), loras (array)
+- **Models**: checkpoint (object - zorunlu), loras (array)
 
 ### 4. handler(event)
 

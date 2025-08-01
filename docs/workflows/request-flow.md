@@ -82,27 +82,52 @@ def wait_for_service(url):
 - **Starting**: WebUI API initialization süreci
 - **Ready**: API requests kabul etmeye hazır
 
-### 4. Model Preparation
+### 4. Model Preparation & Checkpoint Management
 **Sorumlu Bileşen**: handler.py - prepare_inference_request() function
 **Süre**: 0-300 seconds (model download dependent)
 
 #### İşleyiş
 ```python
 def prepare_inference_request(input_data):
+    # 1. Validate request
+    validate_request(input_data)
+    
+    # 2. Prepare models (download if needed)
     checkpoint_path, lora_paths, models_downloaded = model_manager.prepare_models_for_request(
         checkpoint_info, loras
     )
-    if models_downloaded:
-        # Wait for WebUI API to recognize new models
-        time.sleep(3)
-        wait_for_service(url=f'{LOCAL_URL}/sd-models', max_retries=30)
+    
+    # 3. Handle checkpoint switching
+    if checkpoint_info:
+        current_model = get_current_model()
+        target_checkpoint = checkpoint_info["name"]
+        
+        if target_checkpoint not in current_model:
+            change_checkpoint(target_checkpoint)
+            wait_for_model_loading()
+            verify_checkpoint_loaded(target_checkpoint)
 ```
+
+#### Yeni Checkpoint Yönetimi
+1. **Request Validation**: Checkpoint zorunluluğu kontrolü
+2. **Current Model Check**: Mevcut yüklü model kontrolü
+3. **Checkpoint Switching**: API-based model değişimi
+4. **Loading Monitor**: Progress endpoint ile takip
+5. **Verification**: Model değişiminin doğrulanması
 
 #### Model Management
 1. **Cache Check**: Verify if models are already cached
 2. **Download Process**: Download missing models from CivitAI
 3. **Registry Update**: Update model cache registry
 4. **API Stability**: Verify WebUI API health after downloads
+
+#### Checkpoint Değişim Süreci
+- **Current Model Detection**: WebUI API'den mevcut model bilgisi
+- **Target Comparison**: Hedef checkpoint ile karşılaştırma
+- **API Request**: `/sdapi/v1/options` endpoint ile değişim
+- **Progress Monitoring**: `/sdapi/v1/progress` ile takip
+- **Verification**: Model değişiminin başarılı olduğunu doğrulama
+- **Error Handling**: Başarısızlık durumunda exception
 
 #### Download Impact Handling
 - **New Model Detection**: Track when models are downloaded
