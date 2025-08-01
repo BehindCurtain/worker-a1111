@@ -55,6 +55,12 @@ COPY --from=download /model.safetensors /model.safetensors
 # Create network volume mount point (RunPod mounts at /runpod-volume)
 RUN mkdir -p /runpod-volume/models/checkpoints /runpod-volume/models/loras /runpod-volume/models/embeddings
 
+# Create persistent pip cache directory for A1111 dependencies
+RUN mkdir -p /runpod-volume/.cache/a1111/pip
+
+# Configure pip to use RunPod volume cache for persistent caching across container restarts
+ENV PIP_CACHE_DIR=/runpod-volume/.cache/a1111/pip
+
 # install dependencies
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \

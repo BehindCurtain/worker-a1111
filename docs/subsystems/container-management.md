@@ -55,7 +55,7 @@ FROM pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime as build_final_image
 - **Memory Management**: tcmalloc integration
 - **GPU Acceleration**: xformers, CUDA optimization
 - **Network Optimization**: Port 3000 binding
-- **Cache Strategy**: pip cache mounting
+- **Cache Strategy**: Hybrid pip cache (Docker build-time + RunPod persistent)
 
 ## Bağımlılıklar
 
@@ -88,6 +88,67 @@ FROM pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime as build_final_image
 ### Runtime Parameters
 - `LD_PRELOAD`: tcmalloc library path
 - `PYTHONUNBUFFERED`: true (logging optimization)
+
+### Cache Configuration
+- `PIP_CACHE_DIR`: /runpod-volume/.cache/a1111/pip (persistent cache)
+
+## Cache Strategy
+
+### Hybrid Pip Cache System
+
+#### Docker Build-time Cache
+```dockerfile
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
+```
+- **Scope**: Build process optimization
+- **Persistence**: Docker daemon lifecycle
+- **Benefits**: Faster image builds, reduced network usage during build
+
+#### RunPod Persistent Cache
+```dockerfile
+RUN mkdir -p /runpod-volume/.cache/a1111/pip
+ENV PIP_CACHE_DIR=/runpod-volume/.cache/a1111/pip
+```
+- **Scope**: Runtime pip operations
+- **Persistence**: Across container restarts
+- **Benefits**: Faster extension installs, reduced cold start times
+
+### Cache Benefits
+
+#### Performance Improvements
+- **Cold Start Optimization**: Subsequent container starts benefit from cached packages
+- **Extension Installation**: Runtime extension installs significantly faster
+- **Network Bandwidth**: Reduced download requirements
+- **Startup Time**: Faster dependency resolution
+
+#### Resource Efficiency
+- **Storage Optimization**: Shared cache across container instances
+- **Network Usage**: Minimized redundant downloads
+- **I/O Performance**: Local cache access vs network downloads
+- **Cost Reduction**: Lower bandwidth usage on RunPod platform
+
+### Cache Management
+
+#### Cache Structure
+```
+/runpod-volume/.cache/a1111/pip/
+├── wheels/          # Compiled wheel packages
+├── http/            # HTTP cache for package metadata
+└── selfcheck.json   # Pip self-check cache
+```
+
+#### Cache Lifecycle
+- **Initialization**: Created during container first run
+- **Population**: Filled during pip operations
+- **Persistence**: Maintained across container restarts
+- **Cleanup**: Manual cleanup if needed for space management
+
+#### Cache Monitoring
+- **Size Tracking**: Monitor cache directory size
+- **Hit Rate**: Track cache effectiveness
+- **Performance Impact**: Measure startup time improvements
+- **Storage Usage**: Balance cache size vs available storage
 
 ## Güvenlik Considerations
 

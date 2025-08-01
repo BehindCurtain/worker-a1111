@@ -119,6 +119,12 @@ python -u /handler.py
 - **Cache Warming**: Pre-loading strategies
 - **Cache Invalidation**: Model update handling
 
+#### Pip Package Caching
+- **RunPod Persistent Cache**: /runpod-volume/.cache/a1111/pip
+- **Build-time Cache**: Docker layer caching during build
+- **Extension Cache**: Runtime extension installation optimization
+- **Dependency Cache**: Python package metadata and wheels
+
 #### Request Caching
 - **No Response Caching**: Real-time generation requirement
 - **Parameter Validation Cache**: Input validation optimization
