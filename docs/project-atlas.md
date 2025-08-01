@@ -58,7 +58,7 @@ Bu proje, Automatic1111 Stable Diffusion WebUI'yi RunPod serverless platformunda
 - **Event-driven execution**: Request bazlı çalışma
 - **Auto-scaling**: Talebe göre otomatik ölçeklendirme
 - **Pay-per-use**: Kullanım bazlı ücretlendirme
-- **GPU access**: Dedicated GPU resources
+- **GPU access**: Dedicated GPU resources (RTX 6000 Ada - 48GB VRAM)
 
 ### Handler Pattern:
 - **Input validation**: Request parameter kontrolü

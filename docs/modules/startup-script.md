@@ -45,30 +45,30 @@ CUDA_TEST_EXIT_CODE=$?
 ```
 
 #### Amaç
-RTX 5090 CUDA compatibility'sini test eder ve sistem hazırlığını doğrular.
+RTX 6000 Ada CUDA compatibility'sini test eder ve sistem hazırlığını doğrular.
 
 #### Teknik Detaylar
 - **Test Script**: /cuda_test.py execution
 - **Exit Code Capture**: $? ile test sonucu yakalama
-- **RTX 5090 Support**: sm_120 compute capability kontrolü
+- **RTX 6000 Ada Support**: sm_89 compute capability kontrolü
 - **PyTorch Verification**: CUDA 12.8 compatibility test
 
 #### Test Sonuçları
 ```bash
 if [ $CUDA_TEST_EXIT_CODE -eq 0 ]; then
-    echo "🎉 CUDA compatibility test PASSED - RTX 5090 ready!"
+    echo "🎉 CUDA compatibility test PASSED - RTX 6000 Ada ready!"
 elif [ $CUDA_TEST_EXIT_CODE -eq 1 ]; then
     echo "⚠ CUDA test passed with warnings - continuing with reduced performance"
 else
     echo "❌ CUDA compatibility test FAILED"
-    echo "❌ RTX 5090 may not be properly supported"
+    echo "❌ RTX 6000 Ada may not be properly supported"
     echo "❌ Check the logs above for details"
     echo "⚠ Attempting to continue anyway..."
 fi
 ```
 
 #### Exit Code Meanings
-- **0**: All tests passed, RTX 5090 fully supported
+- **0**: All tests passed, RTX 6000 Ada fully supported
 - **1**: CUDA works but xformers issues, reduced performance
 - **2+**: CUDA compatibility issues, may not work properly
 
@@ -247,14 +247,14 @@ Handler service exit olduğunda WebUI API'yi de temiz şekilde kapatır.
 1. **PyTorch Version Check**: 2.7.0+ verification
 2. **CUDA Availability**: torch.cuda.is_available()
 3. **GPU Detection**: Device count and properties
-4. **Compute Capability**: sm_120 support verification
+4. **Compute Capability**: sm_89 support verification
 5. **Tensor Operations**: GPU functionality test
 6. **Xformers Test**: Optimization library compatibility
 
 ### Error Handling
 - **Test Failure**: Continue with warnings
 - **Partial Success**: Reduced performance mode
-- **Complete Success**: Full RTX 5090 optimization
+- **Complete Success**: Full RTX 6000 Ada optimization
 
 ## Environment Management
 
@@ -302,13 +302,13 @@ export PYTHONUNBUFFERED=true
 
 ### Resource Usage
 - **Memory**: tcmalloc optimization active
-- **GPU**: CUDA 12.8 with RTX 5090 support
+- **GPU**: CUDA 12.8 with RTX 6000 Ada support
 - **CPU**: Parallel service initialization
 - **I/O**: Unbuffered Python output
 
 ### Optimization Features
 - **Memory Allocator**: tcmalloc performance boost
-- **CUDA Compatibility**: RTX 5090 sm_120 support
+- **CUDA Compatibility**: RTX 6000 Ada sm_89 support
 - **Attention Mechanism**: xformers optimization
 - **Model Loading**: Pre-loaded model strategy
 
@@ -343,7 +343,7 @@ export PYTHONUNBUFFERED=true
 ## Troubleshooting
 
 ### Common Issues
-1. **CUDA Compatibility Failure**: RTX 5090 not supported
+1. **CUDA Compatibility Failure**: RTX 6000 Ada not supported
 2. **tcmalloc Not Found**: Performance degradation
 3. **Port Conflicts**: Service binding failures
 4. **Model Loading Errors**: WebUI initialization failures
@@ -356,7 +356,7 @@ export PYTHONUNBUFFERED=true
 - **Log Analysis**: Container log examination
 - **Environment Verification**: env | grep -E "(LD_PRELOAD|PYTHON)"
 
-### RTX 5090 Specific Debugging
+### RTX 6000 Ada Specific Debugging
 - **Compute Capability**: nvidia-smi --query-gpu=compute_cap --format=csv
 - **PyTorch Version**: python -c "import torch; print(torch.__version__)"
 - **CUDA Version**: python -c "import torch; print(torch.version.cuda)"
@@ -364,7 +364,7 @@ export PYTHONUNBUFFERED=true
 
 ### Performance Tuning
 - **Memory Allocation**: tcmalloc configuration
-- **CUDA Optimization**: RTX 5090 specific tuning
+- **CUDA Optimization**: RTX 6000 Ada specific tuning
 - **WebUI Parameters**: Optimization flag tuning
 - **Process Priorities**: CPU scheduling optimization
 - **Resource Limits**: Container resource management
@@ -381,4 +381,4 @@ export PYTHONUNBUFFERED=true
 - **Model Path**: Trusted model source
 - **API Access**: Container-internal access only
 
-Bu script, projenin tüm servislerinin coordinated ve optimized şekilde başlatılmasını sağlar, RTX 5090 compatibility'sini doğrular ve system reliability'yi garanti eder.
+Bu script, projenin tüm servislerinin coordinated ve optimized şekilde başlatılmasını sağlar, RTX 6000 Ada compatibility'sini doğrular ve system reliability'yi garanti eder.

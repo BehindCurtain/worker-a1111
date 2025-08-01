@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CUDA Compatibility Test for RTX 5090
+CUDA Compatibility Test for RTX 6000 Ada
 Tests CUDA availability, compute capability, and PyTorch compatibility
 """
 
@@ -8,9 +8,9 @@ import sys
 import torch
 
 def test_cuda_compatibility():
-    """Test CUDA compatibility for RTX 5090 (sm_120)"""
+    """Test CUDA compatibility for RTX 6000 Ada (sm_89)"""
     print("=" * 60)
-    print("CUDA COMPATIBILITY TEST FOR RTX 5090")
+    print("CUDA COMPATIBILITY TEST FOR RTX 6000 Ada")
     print("=" * 60)
     
     # Test 1: PyTorch version
@@ -47,9 +47,9 @@ def test_cuda_compatibility():
         print(f"  - Memory: {gpu_props.total_memory / 1024**3:.1f} GB")
         print(f"  - Multiprocessors: {gpu_props.multi_processor_count}")
         
-        # Check if RTX 5090 (sm_120) is supported
-        if gpu_props.major == 12 and gpu_props.minor == 0:
-            print(f"  ✓ RTX 5090 (sm_120) detected and supported!")
+        # Check if RTX 6000 Ada (sm_89) is supported
+        if gpu_props.major == 8 and gpu_props.minor == 9:
+            print(f"  ✓ RTX 6000 Ada (sm_89) detected and supported!")
         elif gpu_props.major >= 12:
             print(f"  ✓ Advanced GPU architecture (sm_{gpu_props.major}{gpu_props.minor}) supported!")
         elif gpu_props.major >= 8:
@@ -129,7 +129,7 @@ def main():
     
     if cuda_ok and xformers_ok:
         print("🎉 ALL TESTS PASSED!")
-        print("✓ RTX 5090 compatibility confirmed")
+        print("✓ RTX 6000 Ada compatibility confirmed")
         print("✓ Ready for Stable Diffusion inference")
         return 0
     elif cuda_ok:
@@ -139,7 +139,7 @@ def main():
         return 1
     else:
         print("❌ CUDA COMPATIBILITY ISSUES DETECTED")
-        print("❌ RTX 5090 may not be properly supported")
+        print("❌ RTX 6000 Ada may not be properly supported")
         print("❌ Check PyTorch and CUDA versions")
         return 2
 

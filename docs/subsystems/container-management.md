@@ -37,11 +37,11 @@ FROM alpine/git:2.43.0 as download
 ```dockerfile
 FROM pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime as build_final_image
 ```
-- **Base Image**: PyTorch 2.7.0 with CUDA 12.8 runtime (RTX 5090 support)
-- **CUDA Support**: sm_120 compute capability for Blackwell architecture
+- **Base Image**: PyTorch 2.7.0 with CUDA 12.8 runtime (RTX 6000 Ada support)
+- **CUDA Support**: sm_89 compute capability for Ada Lovelace architecture
 - **System Packages**: GPU support, performance libraries
 - **Python Dependencies**: Automatic1111 requirements + RunPod SDK
-- **RTX 5090 Compatibility**: Native support for latest GPU architecture
+- **RTX 6000 Ada Compatibility**: Native support for workstation GPU architecture
 
 ### Kritik Konfigürasyonlar
 
@@ -70,8 +70,8 @@ FROM pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime as build_final_image
 - **runpod**: Serverless platform SDK
 
 ### CUDA Level
-- **CUDA Runtime**: 12.8+ for RTX 5090 support
-- **Compute Capability**: sm_120 (Blackwell architecture)
+- **CUDA Runtime**: 12.8+ for RTX 6000 Ada support
+- **Compute Capability**: sm_89 (Ada Lovelace architecture)
 - **cuDNN**: 9.x for optimized neural network operations
 
 ## Konfigürasyon Parametreleri
@@ -181,13 +181,13 @@ ENV PIP_CACHE_DIR=/runpod-volume/.cache/a1111/pip
 2. **GPU Detection**: CUDA driver compatibility
 3. **Memory Issues**: Insufficient GPU memory, tcmalloc configuration
 4. **Build Failures**: Dependency conflicts, version mismatches
-5. **RTX 5090 CUDA Errors**: "no kernel image is available for execution on the device"
+5. **RTX 6000 Ada CUDA Errors**: "no kernel image is available for execution on the device"
 
-### RTX 5090 Specific Issues
+### RTX 6000 Ada Specific Issues
 
 #### CUDA Compatibility Error
 **Symptom**: `RuntimeError: CUDA error: no kernel image is available for execution on the device`
-**Cause**: PyTorch version doesn't support sm_120 compute capability
+**Cause**: PyTorch version doesn't support sm_89 compute capability
 **Solution**: 
 - Use PyTorch 2.7.0+ with CUDA 12.8
 - Ensure base image: `pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime`

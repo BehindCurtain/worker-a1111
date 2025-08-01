@@ -199,7 +199,7 @@ python /stable-diffusion-webui/webui.py \
 ### GPU Memory Allocation
 - **Model Loading**: ~4GB for Deliberate v6
 - **Inference Buffer**: Dynamic allocation based on resolution
-- **Batch Processing**: Memory scaling with batch size
+- **Batch Processing**: Memory scaling with batch size (RTX 6000 Ada: 48GB VRAM)
 - **Emergency Cleanup**: OOM recovery mechanisms
 
 ### CPU Resource Usage

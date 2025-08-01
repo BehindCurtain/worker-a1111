@@ -11,12 +11,12 @@ python ./cuda_test.py
 CUDA_TEST_EXIT_CODE=$?
 
 if [ $CUDA_TEST_EXIT_CODE -eq 0 ]; then
-    echo "🎉 CUDA compatibility test PASSED - RTX 5090 ready!"
+    echo "🎉 CUDA compatibility test PASSED - RTX 6000 Ada ready!"
 elif [ $CUDA_TEST_EXIT_CODE -eq 1 ]; then
     echo "⚠ CUDA test passed with warnings - continuing with reduced performance"
 else
     echo "❌ CUDA compatibility test FAILED"
-    echo "❌ RTX 5090 may not be properly supported"
+    echo "❌ RTX 6000 Ada may not be properly supported"
     echo "❌ Check the logs above for details"
     echo "⚠ Attempting to continue anyway..."
 fi
