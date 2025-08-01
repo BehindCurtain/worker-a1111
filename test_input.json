@@ -9,10 +9,6 @@
     "sampler_name": "DPM++ 2M Karras",
     "seed": 797935397,
     "clip_skip": 2,
-    "checkpoint": {
-      "name": "Jib Mix Illustrious Realistic",
-      "url": "https://civitai.com/api/download/models/1590699?type=Model&format=SafeTensor&size=pruned&fp=fp16"
-    },
     "loras": [
       {
         "name": "Detail Tweaker XL",

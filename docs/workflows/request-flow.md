@@ -82,22 +82,28 @@ def wait_for_service(url):
 - **Starting**: WebUI API initialization süreci
 - **Ready**: API requests kabul etmeye hazır
 
-### 4. Model Preparation & Checkpoint Management
+### 4. Model Preparation & Hardcoded Checkpoint Management
 **Sorumlu Bileşen**: handler.py - prepare_inference_request() function
 **Süre**: 0-300 seconds (model download dependent)
 
 #### İşleyiş
 ```python
 def prepare_inference_request(input_data):
-    # 1. Validate request
+    # 1. Validate request (no checkpoint validation needed - it's hardcoded)
     validate_request(input_data)
     
-    # 2. Prepare models (download if needed)
+    # 2. Use hardcoded checkpoint and extract LoRAs from request
+    checkpoint_info = HARDCODED_CHECKPOINT
+    loras = input_data.get("loras", [])
+    
+    print(f"🎯 Using hardcoded checkpoint: {checkpoint_info['name']}")
+    
+    # 3. Prepare models (download if needed)
     checkpoint_path, lora_paths, models_downloaded = model_manager.prepare_models_for_request(
         checkpoint_info, loras
     )
     
-    # 3. Handle checkpoint switching
+    # 4. Handle checkpoint switching
     if checkpoint_info:
         current_model = get_current_model()
         target_checkpoint = checkpoint_info["name"]
@@ -108,12 +114,13 @@ def prepare_inference_request(input_data):
             verify_checkpoint_loaded(target_checkpoint)
 ```
 
-#### Yeni Checkpoint Yönetimi
-1. **Request Validation**: Checkpoint zorunluluğu kontrolü
-2. **Current Model Check**: Mevcut yüklü model kontrolü
-3. **Checkpoint Switching**: API-based model değişimi
-4. **Loading Monitor**: Progress endpoint ile takip
-5. **Verification**: Model değişiminin doğrulanması
+#### Hardcoded Checkpoint Yönetimi
+1. **Request Validation**: Sadece prompt kontrolü (checkpoint hardcoded)
+2. **Hardcoded Checkpoint**: Her zaman "Jib Mix Illustrious Realistic" kullanılır
+3. **Current Model Check**: Mevcut yüklü model kontrolü
+4. **Checkpoint Switching**: API-based model değişimi (gerekirse)
+5. **Loading Monitor**: Progress endpoint ile takip
+6. **Verification**: Model değişiminin doğrulanması
 
 #### Model Management
 1. **Cache Check**: Verify if models are already cached

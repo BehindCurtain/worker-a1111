@@ -147,15 +147,16 @@ Mevcut model durumunu kontrol eder ve kullanılabilir modelleri listeler.
 ### 1.3. validate_request(input_data)
 
 #### Amaç
-Gelen request'in gerekli checkpoint bilgilerini içerdiğini doğrular.
+Gelen request'in gerekli parametreleri içerdiğini doğrular.
+Checkpoint artık hardcoded olduğu için request'ten kontrol edilmez.
 
 #### Parametreler
 - `input_data` (dict): Gelen request verisi
 
 #### İşleyiş
-- Checkpoint varlığını kontrol eder
-- Checkpoint'in name ve url alanlarını doğrular
-- Eksik bilgi durumunda ValueError fırlatır
+- Prompt varlığını kontrol eder
+- Eksik prompt durumunda ValueError fırlatır
+- Checkpoint kontrolü artık yapılmaz (hardcoded)
 
 ### 1.4. get_current_model()
 
@@ -335,7 +336,7 @@ def clean_webui_cache():
 ### 3. prepare_inference_request(input_data)
 
 #### Amaç
-Input data'yı WebUI API format'ına dönüştürür ve güvenli checkpoint değişimi ile model management entegrasyonu sağlar.
+Input data'yı WebUI API format'ına dönüştürür ve hardcoded checkpoint ile model management entegrasyonu sağlar.
 
 #### Parametreler
 - `input_data` (dict): RunPod event'inden gelen raw input data
@@ -346,14 +347,16 @@ Input data'yı WebUI API format'ına dönüştürür ve güvenli checkpoint değ
 #### İşleyiş
 ```python
 def prepare_inference_request(input_data):
-    # 1. Validate request
+    # 1. Validate request (no checkpoint validation needed - it's hardcoded)
     validate_request(input_data)
     
-    # Extract model information
-    checkpoint_info = input_data.get("checkpoint")
+    # 2. Use hardcoded checkpoint and extract LoRAs from request
+    checkpoint_info = HARDCODED_CHECKPOINT
     loras = input_data.get("loras", [])
     
-    # 2. Prepare models (download if needed)
+    print(f"🎯 Using hardcoded checkpoint: {checkpoint_info['name']}")
+    
+    # 3. Prepare models (download if needed)
     checkpoint_path, lora_paths, models_downloaded = model_manager.prepare_models_for_request(
         checkpoint_info, loras
     )

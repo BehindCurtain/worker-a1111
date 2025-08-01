@@ -43,7 +43,7 @@ Bu proje, Automatic1111 Stable Diffusion WebUI'yi RunPod serverless platformunda
 - **Requests**: HTTP client library
 
 ### Model ve Framework:
-- **Deliberate v6**: Pre-loaded Stable Diffusion model
+- **Jib Mix Illustrious Realistic**: Hardcoded Stable Diffusion checkpoint
 - **xformers**: Memory optimization
 - **CUDA**: GPU acceleration support
 
@@ -88,8 +88,9 @@ Bu proje, Automatic1111 Stable Diffusion WebUI'yi RunPod serverless platformunda
 - **RunPod SDK**: ~1.7.9
 
 ### Model Yönetimi:
-- **Deliberate v6**: HuggingFace'den otomatik download
+- **Jib Mix Illustrious Realistic**: Hardcoded checkpoint, CivitAI'den otomatik download
 - **Safetensors format**: Güvenli model formatı
-- **Pre-loading**: Container build time'da yükleme
+- **Dynamic loading**: Runtime'da model download ve yükleme
+- **LoRA Support**: Request'ten LoRA modelleri dinamik yükleme
 
 Bu atlas, projenin temel yapısını ve felsefesini tanımlar. Detaylı teknik bilgiler alt sistem ve modül dokümantasyonlarında bulunabilir.

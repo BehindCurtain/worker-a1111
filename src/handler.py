@@ -6,6 +6,12 @@ from model_manager import model_manager
 
 LOCAL_URL = "http://127.0.0.1:3000/sdapi/v1"
 
+# Hardcoded checkpoint - always use this
+HARDCODED_CHECKPOINT = {
+    "name": "Jib Mix Illustrious Realistic",
+    "url": "https://civitai.com/api/download/models/1590699?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+}
+
 automatic_session = requests.Session()
 retries = Retry(total=10, backoff_factor=0.1, status_forcelist=[502, 503, 504])
 automatic_session.mount('http://', HTTPAdapter(max_retries=retries))
@@ -159,14 +165,11 @@ def clean_webui_cache():
 
 def validate_request(input_data):
     """
-    Validate that request contains required checkpoint information.
+    Validate that request contains required parameters.
+    Checkpoint is now hardcoded, so no longer validated from request.
     """
-    if not input_data.get("checkpoint"):
-        raise ValueError("Checkpoint is required in request")
-    
-    checkpoint_info = input_data["checkpoint"]
-    if not checkpoint_info.get("name") or not checkpoint_info.get("url"):
-        raise ValueError("Checkpoint must have 'name' and 'url' fields")
+    if not input_data.get("prompt"):
+        raise ValueError("Prompt is required in request")
 
 
 def get_current_model():
@@ -400,16 +403,18 @@ def run_inference(inference_request):
 
 def prepare_inference_request(input_data):
     """
-    Prepare inference request with model management and LoRA support.
+    Prepare inference request with hardcoded checkpoint and LoRA support.
     """
-    # 1. Validate request
+    # 1. Validate request (no checkpoint validation needed - it's hardcoded)
     validate_request(input_data)
     
-    # Extract model information
-    checkpoint_info = input_data.get("checkpoint")
+    # 2. Use hardcoded checkpoint and extract LoRAs from request
+    checkpoint_info = HARDCODED_CHECKPOINT
     loras = input_data.get("loras", [])
     
-    # 2. Prepare models (download if needed)
+    print(f"🎯 Using hardcoded checkpoint: {checkpoint_info['name']}")
+    
+    # 3. Prepare models (download if needed)
     checkpoint_path, lora_paths, models_downloaded = model_manager.prepare_models_for_request(
         checkpoint_info, loras
     )
