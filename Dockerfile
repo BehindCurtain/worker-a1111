@@ -35,8 +35,8 @@ RUN python -c "import torch; print(f'PyTorch version: {torch.__version__}'); pri
 
 # Clone and setup Automatic1111 WebUI
 RUN --mount=type=cache,target=/root/.cache/pip \
-    git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git && \
-    cd stable-diffusion-webui && \
+    git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git /stable-diffusion-webui && \
+    cd /stable-diffusion-webui && \
     git reset --hard ${A1111_RELEASE}
 
 # Install xformers compatible with CUDA 12.8 and PyTorch 2.7.0
@@ -45,7 +45,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Install other WebUI requirements, but skip PyTorch (already installed)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    cd stable-diffusion-webui && \
+    cd /stable-diffusion-webui && \
     sed -i '/torch==/d; /torchvision==/d; /torchaudio==/d' requirements_versions.txt && \
     pip install -r requirements_versions.txt && \
     python -c "from launch import prepare_environment; prepare_environment()" --skip-torch-cuda-test

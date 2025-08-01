@@ -106,6 +106,7 @@ cd /stable-diffusion-webui && python webui.py \
 - **Disk I/O**: Model file reading
 
 #### Critical Dependencies
+- **WebUI Directory**: /stable-diffusion-webui directory existence
 - **Model File**: /model.safetensors availability
 - **GPU Drivers**: CUDA compatibility
 - **Python Packages**: Pre-installed dependencies
@@ -240,17 +241,22 @@ Shutdown:    CUDA context cleanup
 
 ### Initialization Failures
 
-#### 1. Model Loading Failure
+#### 1. WebUI Directory Missing
+- **Cause**: Incorrect Dockerfile path configuration
+- **Detection**: start.sh directory check failure
+- **Recovery**: Fix Dockerfile clone path to /stable-diffusion-webui
+
+#### 2. Model Loading Failure
 - **Cause**: Corrupted model file, insufficient VRAM
 - **Detection**: WebUI API startup errors
 - **Recovery**: Container restart, model re-download
 
-#### 2. GPU Access Failure
+#### 3. GPU Access Failure
 - **Cause**: Driver issues, GPU unavailable
 - **Detection**: CUDA initialization errors
 - **Recovery**: Host-level GPU troubleshooting
 
-#### 3. Port Binding Failure
+#### 4. Port Binding Failure
 - **Cause**: Port already in use
 - **Detection**: HTTP server startup error
 - **Recovery**: Port configuration change
