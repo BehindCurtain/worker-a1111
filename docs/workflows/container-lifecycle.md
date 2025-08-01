@@ -74,7 +74,7 @@ echo "Starting WebUI API"
 
 #### 3.2 WebUI Process Launch
 ```bash
-python /stable-diffusion-webui/webui.py \
+cd /stable-diffusion-webui && python webui.py \
   --xformers \
   --no-half-vae \
   --skip-python-version-check \

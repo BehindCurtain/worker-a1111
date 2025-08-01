@@ -32,7 +32,7 @@ export LD_PRELOAD="${TCMALLOC}"
 export PYTHONUNBUFFERED=true
 
 # Start WebUI API in background
-python /stable-diffusion-webui/webui.py \
+cd /stable-diffusion-webui && python webui.py \
   --xformers \
   --no-half-vae \
   --skip-python-version-check \

@@ -111,7 +111,7 @@ tcmalloc memory allocator'ı sistem genelinde aktif eder.
 
 ### 5. WebUI API Process Launch
 ```bash
-python /stable-diffusion-webui/webui.py \
+cd /stable-diffusion-webui && python webui.py \
   --xformers \
   --no-half-vae \
   --skip-python-version-check \
@@ -133,6 +133,11 @@ python /stable-diffusion-webui/webui.py \
 
 #### Amaç
 Automatic1111 WebUI'yi API mode'da background process olarak başlatır.
+
+#### Working Directory Change
+- **Directory Change**: `cd /stable-diffusion-webui` ile WebUI dizinine geçiş
+- **Relative Path**: `python webui.py` ile relative path kullanımı
+- **Path Resolution**: Container içinde WebUI'nin doğru konumuna erişim
 
 #### Parameter Analizi
 
