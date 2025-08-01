@@ -120,9 +120,46 @@ def check_model_status():
         return False
 
 
+def clean_webui_cache():
+    """
+    Clean WebUI cache to resolve SQLite schema issues.
+    """
+    import os
+    import shutil
+    
+    cache_paths = [
+        "/stable-diffusion-webui/cache",
+        "/stable-diffusion-webui/models/Stable-diffusion/*.cache",
+        "/stable-diffusion-webui/models/Lora/*.cache"
+    ]
+    
+    print("🧹 Cleaning WebUI cache to resolve database issues...")
+    
+    for cache_path in cache_paths:
+        try:
+            if "*" in cache_path:
+                # Handle glob patterns
+                import glob
+                for file_path in glob.glob(cache_path):
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"✓ Removed cache file: {file_path}")
+            else:
+                # Handle directories
+                if os.path.exists(cache_path):
+                    shutil.rmtree(cache_path)
+                    print(f"✓ Cleaned cache directory: {cache_path}")
+                    # Recreate the directory
+                    os.makedirs(cache_path, exist_ok=True)
+        except Exception as e:
+            print(f"⚠ Warning: Could not clean {cache_path}: {e}")
+    
+    print("✓ Cache cleanup completed")
+
+
 def run_inference(inference_request):
     """
-    Run inference on a request with recovery mechanism for 404 errors.
+    Run inference on a request with enhanced recovery mechanism for 404 errors.
     """
     max_retries = 3
     retry_delay = 5  # seconds
@@ -147,37 +184,48 @@ def run_inference(inference_request):
                 print("❌ 404 Error: txt2img endpoint not found")
                 print("This usually means:")
                 print("  1. WebUI API is not fully initialized")
-                print("  2. --api flag is missing from WebUI startup")
-                print("  3. Model is not loaded properly")
-                print("  4. Model switching caused API restart")
+                print("  2. SQLite cache database schema issues")
+                print("  3. Model metadata reading failures")
+                print("  4. API endpoint registration failed")
                 
-                # If this is not the last attempt, try recovery
+                # If this is not the last attempt, try enhanced recovery
                 if attempt < max_retries - 1:
-                    print(f"🔄 Attempting recovery... waiting {retry_delay} seconds")
+                    print(f"🔄 Attempting enhanced recovery... waiting {retry_delay} seconds")
                     time.sleep(retry_delay)
                     
-                    # Try to recover by checking API health and waiting for readiness
+                    # Try enhanced recovery process
                     try:
-                        print("🔍 Checking API health after 404 error...")
+                        print("🔍 Starting enhanced recovery process...")
+                        
+                        # Step 1: Clean cache to resolve SQLite issues
+                        clean_webui_cache()
+                        
+                        # Step 2: Wait a bit for cache cleanup to take effect
+                        print("⏳ Waiting for cache cleanup to take effect...")
+                        time.sleep(3)
+                        
+                        # Step 3: Check basic API health
+                        print("🔍 Checking basic API health...")
                         wait_for_service(url=f'{LOCAL_URL}/sd-models', max_retries=60)  # 12 seconds max
                         print("✓ Basic API service recovered")
                         
-                        # Check model status
+                        # Step 4: Check model status
                         model_ready = check_model_status()
                         if model_ready:
                             print("✓ Model status confirmed after recovery")
                         else:
                             print("⚠ Model status unclear, but continuing...")
                         
-                        # Wait a bit more for txt2img endpoint to be ready
-                        wait_for_txt2img_service(max_retries=60)  # 30 seconds max
+                        # Step 5: Wait for txt2img endpoint to be ready
+                        print("🔍 Waiting for txt2img endpoint recovery...")
+                        wait_for_txt2img_service(max_retries=120)  # 60 seconds max
                         print("✓ txt2img endpoint recovered")
                         
                         # Continue to next attempt
                         continue
                         
                     except Exception as recovery_error:
-                        print(f"❌ Recovery failed: {recovery_error}")
+                        print(f"❌ Enhanced recovery failed: {recovery_error}")
                         if attempt == max_retries - 1:
                             # Last attempt failed, give up
                             break
@@ -197,7 +245,7 @@ def run_inference(inference_request):
                 
                 # If we reach here on last attempt, raise the error
                 if attempt == max_retries - 1:
-                    raise Exception(f"txt2img endpoint returned 404 after {max_retries} attempts. WebUI API may not be properly initialized.")
+                    raise Exception(f"txt2img endpoint returned 404 after {max_retries} attempts with enhanced recovery. This indicates a fundamental WebUI API initialization issue.")
                     
             else:
                 print(f"❌ HTTP Error {response.status_code}: {response.text[:200]}")

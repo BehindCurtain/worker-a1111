@@ -114,9 +114,11 @@ def wait_for_service(url):
 
 ### 404 Error Recovery Mechanism
 - **Multi-Attempt Strategy**: 3 attempts with 5-second delays
+- **Enhanced Cache Cleanup**: SQLite cache database cleanup to resolve schema issues
 - **API Health Recovery**: Automatic service readiness re-check
 - **Model Status Verification**: Post-recovery model availability check
-- **txt2img Endpoint Recovery**: Specific endpoint availability verification
+- **txt2img Endpoint Recovery**: Specific endpoint availability verification with extended timeout
+- **Root Cause Analysis**: Addresses SQLite OperationalError and model metadata reading failures
 
 ### Model Download Impact Handling
 - **Download Detection**: Track when new models are downloaded

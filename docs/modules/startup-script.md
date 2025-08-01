@@ -137,14 +137,46 @@ WebUI dosyalarının varlığını doğrular ve path sorunlarını önler.
 - **Debug Information**: Hata durumunda directory listing
 - **Early Exit**: Dosya bulunamazsa container'ı durdur
 
+### 5.1. Cache Cleanup for SQLite Issues
+```bash
+# Clean WebUI cache to prevent SQLite schema issues
+echo "🧹 Cleaning WebUI cache to prevent database schema issues..."
+if [ -d "/stable-diffusion-webui/cache" ]; then
+    rm -rf /stable-diffusion-webui/cache/*
+    echo "✓ Cache directory cleaned"
+else
+    echo "ℹ Cache directory not found, skipping cleanup"
+fi
+
+# Clean any existing model cache that might cause issues
+if [ -d "/stable-diffusion-webui/models" ]; then
+    find /stable-diffusion-webui/models -name "*.cache" -delete 2>/dev/null || true
+    echo "✓ Model cache files cleaned"
+fi
+```
+
+#### Amaç
+SQLite schema uyumsuzluğu ve model metadata okuma hatalarını önler.
+
+#### Cache Cleanup Steps
+- **Cache Directory**: `/stable-diffusion-webui/cache` içeriğini temizle
+- **Model Cache Files**: `*.cache` dosyalarını sil
+- **Error Suppression**: 2>/dev/null ile hata gizleme
+- **Conditional Execution**: Directory varlığı kontrolü
+- **SQLite Fix**: OperationalError "no such column: size" çözümü
+
 ### 6. WebUI API Process Launch
 ```bash
+# Start WebUI API in background with enhanced error handling
+echo "🚀 Starting WebUI with enhanced parameters to prevent txt2img endpoint issues..."
 cd /stable-diffusion-webui && python webui.py \
   --xformers \
   --no-half-vae \
+  --no-half \
   --skip-python-version-check \
   --skip-torch-cuda-test \
   --skip-install \
+  --skip-prepare-environment \
   --ckpt-dir /runpod-volume/models/checkpoints \
   --lora-dir /runpod-volume/models/loras \
   --embeddings-dir /runpod-volume/models/embeddings \
@@ -156,7 +188,13 @@ cd /stable-diffusion-webui && python webui.py \
   --nowebui \
   --skip-version-check \
   --no-hashing \
-  --no-download-sd-model &
+  --no-download-sd-model \
+  --api-log \
+  --enable-insecure-extension-access \
+  --disable-console-progressbars \
+  --no-progressbar-hiding \
+  --force-enable-xformers \
+  --api-server-stop &
 ```
 
 #### Amaç
@@ -172,13 +210,16 @@ Automatic1111 WebUI'yi API mode'da background process olarak başlatır.
 
 ##### Performance Optimizations
 - `--xformers`: Memory-efficient attention mechanism (CUDA 12.8 compatible)
+- `--force-enable-xformers`: Force xformers activation even if auto-detection fails
 - `--opt-sdp-attention`: Scaled dot-product attention optimization
 - `--no-half-vae`: Full precision VAE for quality
+- `--no-half`: Full precision model weights (prevents precision-related issues)
 
 ##### Environment Compatibility
 - `--skip-python-version-check`: Python version validation bypass
 - `--skip-torch-cuda-test`: CUDA test bypass (already tested)
 - `--skip-install`: Dependency installation bypass
+- `--skip-prepare-environment`: Skip environment preparation (prevents SQLite issues)
 
 ##### Model Configuration
 - `--ckpt-dir /runpod-volume/models/checkpoints`: Network volume checkpoint directory
@@ -192,6 +233,13 @@ Automatic1111 WebUI'yi API mode'da background process olarak başlatır.
 - `--port 3000`: API server port
 - `--api`: API mode activation
 - `--nowebui`: Web interface deactivation
+- `--api-log`: Enable detailed API request/response logging
+- `--api-server-stop`: Enable API server stop endpoint
+
+##### UI and Logging Optimizations
+- `--enable-insecure-extension-access`: Allow extension access (required for some features)
+- `--disable-console-progressbars`: Clean console output without progress bars
+- `--no-progressbar-hiding`: Keep progress information visible in logs
 
 ##### Security ve Performance
 - `--disable-safe-unpickle`: Performance over security

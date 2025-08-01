@@ -220,13 +220,48 @@ def run_inference(inference_request):
 - **Long Timeout**: 600 saniye timeout (image generation için)
 - **Exception Handling**: Timeout, connection ve HTTP errors
 
-#### Recovery Mechanism
+#### Enhanced Recovery Mechanism
 1. **404 Detection**: txt2img endpoint not found
 2. **Recovery Wait**: 5 saniye bekleme
-3. **API Health Check**: Basic service readiness kontrolü
-4. **Model Status Check**: Model availability verification
-5. **txt2img Check**: Endpoint-specific readiness kontrolü
-6. **Retry Attempt**: Recovered service ile yeniden deneme
+3. **Cache Cleanup**: SQLite cache database cleanup to resolve schema issues
+4. **API Health Check**: Basic service readiness kontrolü
+5. **Model Status Check**: Model availability verification
+6. **txt2img Check**: Endpoint-specific readiness kontrolü with extended timeout
+7. **Retry Attempt**: Recovered service ile yeniden deneme
+
+#### Cache Cleanup Function
+```python
+def clean_webui_cache():
+    """Clean WebUI cache to resolve SQLite schema issues."""
+    import os
+    import shutil
+    
+    cache_paths = [
+        "/stable-diffusion-webui/cache",
+        "/stable-diffusion-webui/models/Stable-diffusion/*.cache",
+        "/stable-diffusion-webui/models/Lora/*.cache"
+    ]
+    
+    print("🧹 Cleaning WebUI cache to resolve database issues...")
+    
+    for cache_path in cache_paths:
+        try:
+            if "*" in cache_path:
+                import glob
+                for file_path in glob.glob(cache_path):
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"✓ Removed cache file: {file_path}")
+            else:
+                if os.path.exists(cache_path):
+                    shutil.rmtree(cache_path)
+                    print(f"✓ Cleaned cache directory: {cache_path}")
+                    os.makedirs(cache_path, exist_ok=True)
+        except Exception as e:
+            print(f"⚠ Warning: Could not clean {cache_path}: {e}")
+    
+    print("✓ Cache cleanup completed")
+```
 
 #### Error Handling
 - **404 Errors**: Automatic recovery mechanism

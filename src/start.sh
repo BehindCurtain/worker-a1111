@@ -47,13 +47,31 @@ if [ ! -f "/stable-diffusion-webui/webui.py" ]; then
     exit 1
 fi
 
-# Start WebUI API in background
+# Clean WebUI cache to prevent SQLite schema issues
+echo "🧹 Cleaning WebUI cache to prevent database schema issues..."
+if [ -d "/stable-diffusion-webui/cache" ]; then
+    rm -rf /stable-diffusion-webui/cache/*
+    echo "✓ Cache directory cleaned"
+else
+    echo "ℹ Cache directory not found, skipping cleanup"
+fi
+
+# Clean any existing model cache that might cause issues
+if [ -d "/stable-diffusion-webui/models" ]; then
+    find /stable-diffusion-webui/models -name "*.cache" -delete 2>/dev/null || true
+    echo "✓ Model cache files cleaned"
+fi
+
+# Start WebUI API in background with enhanced error handling
+echo "🚀 Starting WebUI with enhanced parameters to prevent txt2img endpoint issues..."
 cd /stable-diffusion-webui && python webui.py \
   --xformers \
   --no-half-vae \
+  --no-half \
   --skip-python-version-check \
   --skip-torch-cuda-test \
   --skip-install \
+  --skip-prepare-environment \
   --ckpt-dir /runpod-volume/models/checkpoints \
   --lora-dir /runpod-volume/models/loras \
   --embeddings-dir /runpod-volume/models/embeddings \
@@ -69,7 +87,9 @@ cd /stable-diffusion-webui && python webui.py \
   --api-log \
   --enable-insecure-extension-access \
   --disable-console-progressbars \
-  --no-progressbar-hiding &
+  --no-progressbar-hiding \
+  --force-enable-xformers \
+  --api-server-stop &
 
 # Store WebUI PID for monitoring
 WEBUI_PID=$!
