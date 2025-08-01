@@ -176,10 +176,10 @@ LoRA modelini cache'den alır veya indirir.
 - **LoRA Specific**: LoRA registry section kullanımı
 - **File Extension**: `.safetensors` extension handling
 
-### 9. prepare_models_for_request(self, checkpoint_info: Optional[Dict], loras: Optional[List[Dict]]) -> Tuple[Optional[str], List[Tuple[str, float]]]
+### 9. prepare_models_for_request(self, checkpoint_info: Optional[Dict], loras: Optional[List[Dict]]) -> Tuple[Optional[str], List[Tuple[str, float]], bool]
 
 #### Amaç
-Request için gerekli modelleri hazırlar.
+Request için gerekli modelleri hazırlar ve yeni model indirme durumunu takip eder.
 
 #### Input Processing
 ```python
@@ -209,8 +209,18 @@ Request için gerekli modelleri hazırlar.
 
 #### Output Format
 ```python
-(checkpoint_path, [(lora_path, scale), ...])
+(checkpoint_path, [(lora_path, scale), ...], models_downloaded)
 ```
+
+#### Return Values
+- `checkpoint_path` (Optional[str]): Checkpoint model dosya yolu
+- `lora_paths` (List[Tuple[str, float]]): LoRA dosya yolları ve scale değerleri
+- `models_downloaded` (bool): Yeni model indirme durumu (True: yeni model indirildi, False: cache'den kullanıldı)
+
+#### Model Download Detection
+- **Cache Hit**: Tüm modeller cache'de mevcut → `models_downloaded = False`
+- **Cache Miss**: En az bir model indirildi → `models_downloaded = True`
+- **API Impact**: Yeni model indirme durumunda WebUI API stability kontrolü gerekli
 
 #### Advanced Features
 - **Parallel Downloads**: Multiple LoRA concurrent downloading
@@ -334,10 +344,18 @@ model_manager = ModelManager()
 ```python
 from model_manager import model_manager
 
-# Request processing
-checkpoint_path, lora_paths = model_manager.prepare_models_for_request(
+# Request processing with download detection
+checkpoint_path, lora_paths, models_downloaded = model_manager.prepare_models_for_request(
     checkpoint_info, loras
 )
+
+# Handle model download impact
+if models_downloaded:
+    print("🔄 New models were downloaded. WebUI API may need time to recognize them.")
+    time.sleep(3)  # Wait for model registry update
+    
+    # Verify WebUI API health after model downloads
+    wait_for_service(url=f'{LOCAL_URL}/sd-models', max_retries=30)
 ```
 
 ### WebUI Integration

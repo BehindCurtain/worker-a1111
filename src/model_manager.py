@@ -206,13 +206,18 @@ class ModelManager:
         
         return None
     
-    def prepare_models_for_request(self, checkpoint_info: Optional[Dict] = None, loras: Optional[List[Dict]] = None) -> Tuple[Optional[str], List[Tuple[str, float]]]:
+    def prepare_models_for_request(self, checkpoint_info: Optional[Dict] = None, loras: Optional[List[Dict]] = None) -> Tuple[Optional[str], List[Tuple[str, float]], bool]:
         """Prepare models for inference request"""
         checkpoint_path = None
         lora_paths = []
+        models_downloaded = False
         
         # Handle checkpoint
         if checkpoint_info:
+            # Check if checkpoint is already cached
+            checkpoint_cached = (checkpoint_info["name"] in self.cache_registry["checkpoints"] and 
+                               os.path.exists(os.path.join(CHECKPOINTS_PATH, f"{checkpoint_info['name']}.safetensors")))
+            
             checkpoint_path = self.get_or_download_checkpoint(
                 checkpoint_info["name"],
                 checkpoint_info["url"],
@@ -220,10 +225,17 @@ class ModelManager:
             )
             if not checkpoint_path:
                 print(f"Failed to prepare checkpoint: {checkpoint_info['name']}")
+            elif not checkpoint_cached:
+                print(f"New checkpoint downloaded: {checkpoint_info['name']}")
+                models_downloaded = True
         
         # Handle LoRAs
         if loras:
             for lora_info in loras:
+                # Check if LoRA is already cached
+                lora_cached = (lora_info["name"] in self.cache_registry["loras"] and 
+                             os.path.exists(os.path.join(LORAS_PATH, f"{lora_info['name']}.safetensors")))
+                
                 lora_path = self.get_or_download_lora(
                     lora_info["name"],
                     lora_info["url"],
@@ -232,10 +244,13 @@ class ModelManager:
                 if lora_path:
                     scale = lora_info.get("scale", 1.0)
                     lora_paths.append((lora_path, scale))
+                    if not lora_cached:
+                        print(f"New LoRA downloaded: {lora_info['name']}")
+                        models_downloaded = True
                 else:
                     print(f"Failed to prepare LoRA: {lora_info['name']}")
         
-        return checkpoint_path, lora_paths
+        return checkpoint_path, lora_paths, models_downloaded
     
     def build_lora_prompt(self, base_prompt: str, lora_paths: List[Tuple[str, float]]) -> str:
         """Build prompt with LoRA syntax"""

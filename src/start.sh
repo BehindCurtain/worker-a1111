@@ -65,7 +65,11 @@ cd /stable-diffusion-webui && python webui.py \
   --nowebui \
   --skip-version-check \
   --no-hashing \
-  --no-download-sd-model &
+  --no-download-sd-model \
+  --api-log \
+  --enable-insecure-extension-access \
+  --disable-console-progressbars \
+  --no-progressbar-hiding &
 
 # Store WebUI PID for monitoring
 WEBUI_PID=$!

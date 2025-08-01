@@ -175,7 +175,7 @@ def check_model_status():
 ### 2. run_inference(inference_request)
 
 #### Amaç
-Automatic1111 WebUI API'sine inference request gönderir ve response alır.
+Automatic1111 WebUI API'sine inference request gönderir ve response alır (404 error recovery ile)
 
 #### Parametreler
 - `inference_request` (dict): txt2img API için request parametreleri
@@ -183,51 +183,65 @@ Automatic1111 WebUI API'sine inference request gönderir ve response alır.
 #### İşleyiş
 ```python
 def run_inference(inference_request):
-    try:
-        print(f"Sending inference request to {LOCAL_URL}/txt2img")
-        print(f"Request parameters: steps={inference_request.get('steps')}, "
-              f"size={inference_request.get('width')}x{inference_request.get('height')}, "
-              f"sampler={inference_request.get('sampler_name')}")
-        
-        response = automatic_session.post(url=f'{LOCAL_URL}/txt2img',
-                                          json=inference_request, timeout=600)
-        
-        print(f"Response status: {response.status_code}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            print("✓ Inference completed successfully")
-            return result
-        elif response.status_code == 404:
-            print("❌ 404 Error: txt2img endpoint not found")
-            raise Exception(f"txt2img endpoint returned 404. WebUI API may not be properly initialized.")
-        else:
-            print(f"❌ HTTP Error {response.status_code}: {response.text[:200]}")
-            response.raise_for_status()
+    max_retries = 3
+    retry_delay = 5  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            response = automatic_session.post(url=f'{LOCAL_URL}/txt2img',
+                                              json=inference_request, timeout=600)
+            
+            if response.status_code == 200:
+                result = response.json()
+                print("✓ Inference completed successfully")
+                return result
+            elif response.status_code == 404:
+                # Recovery mechanism for 404 errors
+                if attempt < max_retries - 1:
+                    print(f"🔄 Attempting recovery... waiting {retry_delay} seconds")
+                    time.sleep(retry_delay)
+                    
+                    # Try to recover by checking API health
+                    wait_for_service(url=f'{LOCAL_URL}/sd-models', max_retries=60)
+                    check_model_status()
+                    wait_for_txt2img_service(max_retries=60)
+                    continue
 ```
 
 #### Özellikler
 - **Enhanced Logging**: Detaylı request ve response logging
 - **Status Code Validation**: HTTP status code kontrolü
-- **404 Error Handling**: 404 hatalarını özel olarak handle eder
+- **404 Error Recovery**: 404 hatalarında otomatik recovery mekanizması
+- **Multi-Attempt Strategy**: 3 deneme ile 5 saniye delay
+- **API Health Recovery**: Service readiness re-check
+- **Model Status Verification**: Post-recovery model kontrolü
 - **Error Diagnostics**: Hata durumunda detaylı bilgi sağlar
 - **Session Reuse**: Global session object kullanımı
 - **Long Timeout**: 600 saniye timeout (image generation için)
 - **Exception Handling**: Timeout, connection ve HTTP errors
 
+#### Recovery Mechanism
+1. **404 Detection**: txt2img endpoint not found
+2. **Recovery Wait**: 5 saniye bekleme
+3. **API Health Check**: Basic service readiness kontrolü
+4. **Model Status Check**: Model availability verification
+5. **txt2img Check**: Endpoint-specific readiness kontrolü
+6. **Retry Attempt**: Recovered service ile yeniden deneme
+
 #### Error Handling
-- **404 Errors**: WebUI API initialization sorunları
-- **Timeout Errors**: 600 saniye aşımı durumları
-- **Connection Errors**: Network bağlantı sorunları
-- **HTTP Errors**: Diğer HTTP status code hataları
+- **404 Errors**: Automatic recovery mechanism
+- **Timeout Errors**: Multi-attempt retry strategy
+- **Connection Errors**: Retry with delay
+- **HTTP Errors**: Standard error propagation
 
 #### Request Flow
-1. **Request Logging**: Request parametrelerini logla
-2. **HTTP POST**: Session-based request execution
-3. **Status Validation**: HTTP status code kontrolü
-4. **Success Handling**: 200 OK durumunda JSON parse
-5. **Error Handling**: Hata durumlarında detaylı logging
-6. **Exception Raising**: Uygun exception fırlatma
+1. **Multi-Attempt Loop**: 3 deneme ile retry logic
+2. **Request Logging**: Request parametrelerini logla
+3. **HTTP POST**: Session-based request execution
+4. **Status Validation**: HTTP status code kontrolü
+5. **Recovery Logic**: 404 durumunda recovery sequence
+6. **Success Handling**: 200 OK durumunda JSON parse
+7. **Error Handling**: Hata durumlarında detaylı logging
 
 ### 3. prepare_inference_request(input_data)
 
@@ -248,9 +262,24 @@ def prepare_inference_request(input_data):
     loras = input_data.get("loras", [])
     
     # Prepare models (download if needed)
-    checkpoint_path, lora_paths = model_manager.prepare_models_for_request(
+    checkpoint_path, lora_paths, models_downloaded = model_manager.prepare_models_for_request(
         checkpoint_info, loras
     )
+    
+    # If new models were downloaded, wait for WebUI API to recognize them
+    if models_downloaded:
+        print("🔄 New models were downloaded. WebUI API may need time to recognize them.")
+        print("⏳ Waiting 3 seconds for model registry update...")
+        time.sleep(3)
+        
+        # Check if WebUI API is still responsive after model downloads
+        try:
+            print("🔍 Verifying WebUI API health after model downloads...")
+            wait_for_service(url=f'{LOCAL_URL}/sd-models', max_retries=30)  # 6 seconds max
+            print("✓ WebUI API is responsive after model downloads")
+        except Exception as e:
+            print(f"⚠ Warning: WebUI API health check failed after model downloads: {e}")
+            print("⚠ Continuing anyway, but inference may fail...")
     
     # Build the inference request
     inference_request = {}
@@ -292,6 +321,10 @@ def prepare_inference_request(input_data):
 - **Parameter Mapping**: Standard parametreleri otomatik kopyalama
 - **CLIP Skip Support**: clip_skip parametresi desteği
 - **Override Settings**: WebUI API override_settings kullanımı
+- **Model Download Detection**: Yeni model indirme durumu takibi
+- **API Stability Check**: Model indirme sonrası API sağlık kontrolü
+- **Registry Update Wait**: Model registry güncellemesi için bekleme
+- **Graceful Degradation**: Sağlık kontrolü başarısız olsa bile devam etme
 
 #### Supported Parameters
 - **Basic**: prompt, negative_prompt, steps, cfg_scale, width, height

@@ -112,10 +112,23 @@ def wait_for_service(url):
 - **Response Validation**: JSON format kontrolü
 - **Error Propagation**: Client'a meaningful error messages
 
+### 404 Error Recovery Mechanism
+- **Multi-Attempt Strategy**: 3 attempts with 5-second delays
+- **API Health Recovery**: Automatic service readiness re-check
+- **Model Status Verification**: Post-recovery model availability check
+- **txt2img Endpoint Recovery**: Specific endpoint availability verification
+
+### Model Download Impact Handling
+- **Download Detection**: Track when new models are downloaded
+- **API Stability Check**: Verify WebUI API health after model downloads
+- **Registry Update Wait**: 3-second delay for model registry updates
+- **Graceful Degradation**: Continue with warnings if health checks fail
+
 ### Logging Strategy
 - **Service Status**: Readiness check logging
 - **Error Tracking**: Exception logging with context
 - **Performance Metrics**: Request duration tracking
+- **Recovery Operations**: Detailed recovery attempt logging
 
 ## Performance Optimizations
 

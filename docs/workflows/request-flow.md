@@ -82,19 +82,51 @@ def wait_for_service(url):
 - **Starting**: WebUI API initialization süreci
 - **Ready**: API requests kabul etmeye hazır
 
-### 4. Inference Request
+### 4. Model Preparation
+**Sorumlu Bileşen**: handler.py - prepare_inference_request() function
+**Süre**: 0-300 seconds (model download dependent)
+
+#### İşleyiş
+```python
+def prepare_inference_request(input_data):
+    checkpoint_path, lora_paths, models_downloaded = model_manager.prepare_models_for_request(
+        checkpoint_info, loras
+    )
+    if models_downloaded:
+        # Wait for WebUI API to recognize new models
+        time.sleep(3)
+        wait_for_service(url=f'{LOCAL_URL}/sd-models', max_retries=30)
+```
+
+#### Model Management
+1. **Cache Check**: Verify if models are already cached
+2. **Download Process**: Download missing models from CivitAI
+3. **Registry Update**: Update model cache registry
+4. **API Stability**: Verify WebUI API health after downloads
+
+#### Download Impact Handling
+- **New Model Detection**: Track when models are downloaded
+- **API Health Check**: Verify service stability post-download
+- **Registry Sync**: 3-second wait for model registry updates
+- **Graceful Degradation**: Continue with warnings if checks fail
+
+### 5. Inference Request
 **Sorumlu Bileşen**: handler.py - run_inference() function
 **Süre**: 10-120 seconds
 
 #### İşleyiş
 ```python
 def run_inference(inference_request):
-    response = automatic_session.post(
-        url=f'{LOCAL_URL}/txt2img',
-        json=inference_request, 
-        timeout=600
-    )
-    return response.json()
+    for attempt in range(max_retries):
+        response = automatic_session.post(
+            url=f'{LOCAL_URL}/txt2img',
+            json=inference_request, 
+            timeout=600
+        )
+        if response.status_code == 404:
+            # Recovery mechanism
+            wait_for_service(url=f'{LOCAL_URL}/sd-models')
+            wait_for_txt2img_service()
 ```
 
 #### HTTP Request Details
@@ -102,13 +134,15 @@ def run_inference(inference_request):
 - **URL**: http://127.0.0.1:3000/sdapi/v1/txt2img
 - **Content-Type**: application/json
 - **Timeout**: 600 seconds
-- **Retry Policy**: 10 attempts with exponential backoff
+- **Retry Policy**: 3 attempts with 5-second delays
+- **Recovery Mechanism**: Automatic API health recovery on 404 errors
 
 #### Request Processing
 1. **Session Reuse**: HTTP connection pooling
 2. **JSON Serialization**: Automatic parameter encoding
 3. **Request Transmission**: HTTP POST to WebUI API
 4. **Response Reception**: JSON response parsing
+5. **Error Recovery**: 404 error recovery with API health checks
 
 ### 5. AI Processing
 **Sorumlu Bileşen**: Automatic1111 WebUI API

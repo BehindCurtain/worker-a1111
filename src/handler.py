@@ -122,54 +122,116 @@ def check_model_status():
 
 def run_inference(inference_request):
     """
-    Run inference on a request.
+    Run inference on a request with recovery mechanism for 404 errors.
     """
-    try:
-        print(f"Sending inference request to {LOCAL_URL}/txt2img")
-        print(f"Request parameters: steps={inference_request.get('steps')}, "
-              f"size={inference_request.get('width')}x{inference_request.get('height')}, "
-              f"sampler={inference_request.get('sampler_name')}")
-        
-        response = automatic_session.post(url=f'{LOCAL_URL}/txt2img',
-                                          json=inference_request, timeout=600)
-        
-        print(f"Response status: {response.status_code}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            print("✓ Inference completed successfully")
-            return result
-        elif response.status_code == 404:
-            print("❌ 404 Error: txt2img endpoint not found")
-            print("This usually means:")
-            print("  1. WebUI API is not fully initialized")
-            print("  2. --api flag is missing from WebUI startup")
-            print("  3. Model is not loaded properly")
+    max_retries = 3
+    retry_delay = 5  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            print(f"Sending inference request to {LOCAL_URL}/txt2img (attempt {attempt + 1}/{max_retries})")
+            print(f"Request parameters: steps={inference_request.get('steps')}, "
+                  f"size={inference_request.get('width')}x{inference_request.get('height')}, "
+                  f"sampler={inference_request.get('sampler_name')}")
             
-            # Try to get more info about available endpoints
-            try:
-                info_response = automatic_session.get(f'{LOCAL_URL}/../docs', timeout=10)
-                if info_response.status_code == 200:
-                    print("API docs are available, but txt2img endpoint is missing")
+            response = automatic_session.post(url=f'{LOCAL_URL}/txt2img',
+                                              json=inference_request, timeout=600)
+            
+            print(f"Response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                print("✓ Inference completed successfully")
+                return result
+            elif response.status_code == 404:
+                print("❌ 404 Error: txt2img endpoint not found")
+                print("This usually means:")
+                print("  1. WebUI API is not fully initialized")
+                print("  2. --api flag is missing from WebUI startup")
+                print("  3. Model is not loaded properly")
+                print("  4. Model switching caused API restart")
+                
+                # If this is not the last attempt, try recovery
+                if attempt < max_retries - 1:
+                    print(f"🔄 Attempting recovery... waiting {retry_delay} seconds")
+                    time.sleep(retry_delay)
+                    
+                    # Try to recover by checking API health and waiting for readiness
+                    try:
+                        print("🔍 Checking API health after 404 error...")
+                        wait_for_service(url=f'{LOCAL_URL}/sd-models', max_retries=60)  # 12 seconds max
+                        print("✓ Basic API service recovered")
+                        
+                        # Check model status
+                        model_ready = check_model_status()
+                        if model_ready:
+                            print("✓ Model status confirmed after recovery")
+                        else:
+                            print("⚠ Model status unclear, but continuing...")
+                        
+                        # Wait a bit more for txt2img endpoint to be ready
+                        wait_for_txt2img_service(max_retries=60)  # 30 seconds max
+                        print("✓ txt2img endpoint recovered")
+                        
+                        # Continue to next attempt
+                        continue
+                        
+                    except Exception as recovery_error:
+                        print(f"❌ Recovery failed: {recovery_error}")
+                        if attempt == max_retries - 1:
+                            # Last attempt failed, give up
+                            break
+                        else:
+                            # Try one more time without recovery
+                            continue
                 else:
-                    print("API docs are also not available")
-            except:
-                print("Cannot access API documentation")
-            
-            raise Exception(f"txt2img endpoint returned 404. WebUI API may not be properly initialized.")
-        else:
-            print(f"❌ HTTP Error {response.status_code}: {response.text[:200]}")
-            response.raise_for_status()
-            
-    except requests.exceptions.Timeout:
-        print("❌ Request timeout (600s exceeded)")
-        raise Exception("Inference request timed out after 600 seconds")
-    except requests.exceptions.ConnectionError as e:
-        print(f"❌ Connection error: {e}")
-        raise Exception("Cannot connect to WebUI API service")
-    except Exception as e:
-        print(f"❌ Inference error: {e}")
-        raise
+                    # Last attempt, try to get more info about available endpoints
+                    try:
+                        info_response = automatic_session.get(f'{LOCAL_URL}/../docs', timeout=10)
+                        if info_response.status_code == 200:
+                            print("API docs are available, but txt2img endpoint is missing")
+                        else:
+                            print("API docs are also not available")
+                    except:
+                        print("Cannot access API documentation")
+                
+                # If we reach here on last attempt, raise the error
+                if attempt == max_retries - 1:
+                    raise Exception(f"txt2img endpoint returned 404 after {max_retries} attempts. WebUI API may not be properly initialized.")
+                    
+            else:
+                print(f"❌ HTTP Error {response.status_code}: {response.text[:200]}")
+                response.raise_for_status()
+                
+        except requests.exceptions.Timeout:
+            print("❌ Request timeout (600s exceeded)")
+            if attempt == max_retries - 1:
+                raise Exception("Inference request timed out after 600 seconds")
+            else:
+                print(f"🔄 Retrying after timeout... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(retry_delay)
+                continue
+                
+        except requests.exceptions.ConnectionError as e:
+            print(f"❌ Connection error: {e}")
+            if attempt == max_retries - 1:
+                raise Exception("Cannot connect to WebUI API service")
+            else:
+                print(f"🔄 Retrying after connection error... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(retry_delay)
+                continue
+                
+        except Exception as e:
+            print(f"❌ Inference error: {e}")
+            if attempt == max_retries - 1:
+                raise
+            else:
+                print(f"🔄 Retrying after error... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(retry_delay)
+                continue
+    
+    # Should not reach here, but just in case
+    raise Exception("All inference attempts failed")
 
 
 def prepare_inference_request(input_data):
@@ -181,9 +243,24 @@ def prepare_inference_request(input_data):
     loras = input_data.get("loras", [])
     
     # Prepare models (download if needed)
-    checkpoint_path, lora_paths = model_manager.prepare_models_for_request(
+    checkpoint_path, lora_paths, models_downloaded = model_manager.prepare_models_for_request(
         checkpoint_info, loras
     )
+    
+    # If new models were downloaded, we may need to wait for WebUI API to recognize them
+    if models_downloaded:
+        print("🔄 New models were downloaded. WebUI API may need time to recognize them.")
+        print("⏳ Waiting 3 seconds for model registry update...")
+        time.sleep(3)
+        
+        # Check if WebUI API is still responsive after model downloads
+        try:
+            print("🔍 Verifying WebUI API health after model downloads...")
+            wait_for_service(url=f'{LOCAL_URL}/sd-models', max_retries=30)  # 6 seconds max
+            print("✓ WebUI API is responsive after model downloads")
+        except Exception as e:
+            print(f"⚠ Warning: WebUI API health check failed after model downloads: {e}")
+            print("⚠ Continuing anyway, but inference may fail...")
     
     # Build the inference request
     inference_request = {}
