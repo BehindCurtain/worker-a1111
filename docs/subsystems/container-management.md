@@ -68,6 +68,7 @@ FROM pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime as build_final_image
 - **torch**: Deep learning framework (2.7.0+ with CUDA 12.8)
 - **xformers**: Attention mechanism optimization (CUDA 12.8 compatible)
 - **runpod**: Serverless platform SDK
+- **timm**: PyTorch Image Models library (>=0.9.0) - MiDaS depth estimation dependency
 
 ### CUDA Level
 - **CUDA Runtime**: 12.8+ for RTX 6000 Ada support
