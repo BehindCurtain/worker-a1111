@@ -24,19 +24,20 @@ automatic_session.mount('http://', HTTPAdapter(max_retries=retries))
 
 ## Fonksiyon Analizi
 
-### 1. wait_for_service(url)
+### 1. wait_for_service(url, max_retries=300)
 
 #### Amaç
 WebUI API servisinin hazır olmasını bekler ve service readiness kontrolü yapar.
 
 #### Parametreler
 - `url` (string): Kontrol edilecek service endpoint URL'i
+- `max_retries` (int): Maksimum retry sayısı (default: 300)
 
 #### İşleyiş
 ```python
-def wait_for_service(url):
+def wait_for_service(url, max_retries=300):
     retries = 0
-    while True:
+    while retries < max_retries:
         try:
             response = requests.get(url, timeout=120)
             if response.status_code == 200:
@@ -46,39 +47,45 @@ def wait_for_service(url):
         except requests.exceptions.RequestException:
             retries += 1
             if retries % 15 == 0:
-                print("Service not ready yet. Retrying...")
+                print(f"Service not ready yet. Retrying... ({retries}/{max_retries})")
         except Exception as err:
             print("Error: ", err)
+            retries += 1
         time.sleep(0.2)
+    
+    raise Exception(f"Service at {url} failed to start after {max_retries} retries ({max_retries * 0.2} seconds)")
 ```
 
 #### Özellikler
 - **Status Code Validation**: 200 OK kontrolü
 - **Timeout**: 120 saniye request timeout
-- **Logging**: Her 15 retry'da bir log mesajı
+- **Retry Limit**: Maksimum 300 retry (60 saniye)
+- **Progress Logging**: Her 15 retry'da bir progress log
 - **Sleep Interval**: 0.2 saniye bekleme süresi
 - **Error Handling**: Generic exception handling
+- **Timeout Exception**: Max retry aşımında exception fırlatma
 
 #### Kullanım Senaryoları
 - Container startup sırasında WebUI API hazırlık kontrolü
 - Service health check operations
 - Dependency service validation
+- Infinite loop prevention
 
-### 1.1. wait_for_txt2img_service()
+### 1.1. wait_for_txt2img_service(max_retries=240)
 
 #### Amaç
 txt2img endpoint'inin özellikle hazır olmasını bekler ve 404 hatalarını önler.
 
 #### Parametreler
-- Parametre almaz (LOCAL_URL global değişkenini kullanır)
+- `max_retries` (int): Maksimum retry sayısı (default: 240)
 
 #### İşleyiş
 ```python
-def wait_for_txt2img_service():
+def wait_for_txt2img_service(max_retries=240):
     print("Checking txt2img endpoint availability...")
     retries = 0
     
-    while True:
+    while retries < max_retries:
         try:
             test_request = {
                 "prompt": "test",
@@ -98,7 +105,22 @@ def wait_for_txt2img_service():
             elif response.status_code == 404:
                 retries += 1
                 if retries % 15 == 0:
-                    print("txt2img endpoint not found (404), retrying...")
+                    print(f"txt2img endpoint not found (404), retrying... ({retries}/{max_retries})")
+            else:
+                print(f"txt2img endpoint returned status {response.status_code}, retrying...")
+                retries += 1
+                
+        except requests.exceptions.RequestException as e:
+            retries += 1
+            if retries % 15 == 0:
+                print(f"txt2img endpoint not ready: {e} ({retries}/{max_retries})")
+        except Exception as err:
+            print("Error checking txt2img endpoint: ", err)
+            retries += 1
+
+        time.sleep(0.5)
+    
+    raise Exception(f"txt2img endpoint failed to start after {max_retries} retries ({max_retries * 0.5} seconds)")
 ```
 
 #### Özellikler
@@ -107,6 +129,9 @@ def wait_for_txt2img_service():
 - **404 Detection**: 404 hatalarını özel olarak handle eder
 - **Ready State Detection**: 200, 400, 422 status kodlarını "hazır" kabul eder
 - **Timeout**: 30 saniye test request timeout
+- **Retry Limit**: Maksimum 240 retry (120 saniye)
+- **Progress Logging**: Her 15 retry'da bir progress log
+- **Timeout Exception**: Max retry aşımında exception fırlatma
 
 ### 1.2. check_model_status()
 
@@ -339,26 +364,38 @@ WebUI API'nin tam olarak hazır olmasını sağlayan multi-step startup sequence
 if __name__ == "__main__":
     print("Starting WebUI API readiness checks...")
     
-    # Step 1: Wait for basic API service
-    print("Step 1: Checking basic API service...")
-    wait_for_service(url=f'{LOCAL_URL}/sd-models')
-    print("✓ Basic API service is ready")
-    
-    # Step 2: Check model status
-    print("Step 2: Checking model status...")
-    model_ready = check_model_status()
-    if not model_ready:
-        print("⚠ Warning: Model status check failed, but continuing...")
-    else:
-        print("✓ Model status check passed")
-    
-    # Step 3: Wait for txt2img endpoint
-    print("Step 3: Checking txt2img endpoint...")
-    wait_for_txt2img_service()
-    print("✓ txt2img endpoint is ready")
-    
-    print("🚀 All WebUI API services are ready. Starting RunPod Serverless...")
-    runpod.serverless.start({"handler": handler})
+    try:
+        # Step 1: Wait for basic API service
+        print("Step 1: Checking basic API service...")
+        wait_for_service(url=f'{LOCAL_URL}/sd-models')
+        print("✓ Basic API service is ready")
+        
+        # Step 2: Check model status
+        print("Step 2: Checking model status...")
+        model_ready = check_model_status()
+        if not model_ready:
+            print("⚠ Warning: Model status check failed, but continuing...")
+        else:
+            print("✓ Model status check passed")
+        
+        # Step 3: Wait for txt2img endpoint
+        print("Step 3: Checking txt2img endpoint...")
+        wait_for_txt2img_service()
+        print("✓ txt2img endpoint is ready")
+        
+        print("🚀 All WebUI API services are ready. Starting RunPod Serverless...")
+        runpod.serverless.start({"handler": handler})
+        
+    except Exception as e:
+        print(f"❌ FATAL ERROR: WebUI API failed to start properly")
+        print(f"❌ Error details: {e}")
+        print("❌ This usually indicates:")
+        print("   1. WebUI API process crashed during startup")
+        print("   2. Model loading failed")
+        print("   3. CUDA/GPU issues")
+        print("   4. Insufficient memory")
+        print("❌ Container will exit. Check the logs above for more details.")
+        exit(1)
 ```
 
 #### Startup Steps
@@ -367,10 +404,12 @@ if __name__ == "__main__":
 3. **txt2img Endpoint Check**: txt2img endpoint'i özel kontrolü
 4. **RunPod Start**: Serverless handler başlatma
 
-#### Error Tolerance
+#### Error Handling
 - **Model Status Failure**: Warning ile devam eder
-- **API Service Failure**: Infinite retry ile bekler
-- **txt2img Failure**: Infinite retry ile bekler
+- **API Service Failure**: Timeout sonrası exception
+- **txt2img Failure**: Timeout sonrası exception
+- **Fatal Errors**: Container exit ile graceful shutdown
+- **Error Diagnostics**: Detaylı hata mesajları ve troubleshooting ipuçları
 
 ## Modül İlişkileri
 

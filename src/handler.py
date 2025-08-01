@@ -14,13 +14,13 @@ automatic_session.mount('http://', HTTPAdapter(max_retries=retries))
 # ---------------------------------------------------------------------------- #
 #                              Automatic Functions                             #
 # ---------------------------------------------------------------------------- #
-def wait_for_service(url):
+def wait_for_service(url, max_retries=300):
     """
     Check if the service is ready to receive requests.
     """
     retries = 0
 
-    while True:
+    while retries < max_retries:
         try:
             response = requests.get(url, timeout=120)
             if response.status_code == 200:
@@ -32,21 +32,25 @@ def wait_for_service(url):
 
             # Only log every 15 retries so the logs don't get spammed
             if retries % 15 == 0:
-                print("Service not ready yet. Retrying...")
+                print(f"Service not ready yet. Retrying... ({retries}/{max_retries})")
         except Exception as err:
             print("Error: ", err)
+            retries += 1
 
         time.sleep(0.2)
+    
+    # If we reach here, service didn't start within timeout
+    raise Exception(f"Service at {url} failed to start after {max_retries} retries ({max_retries * 0.2} seconds)")
 
 
-def wait_for_txt2img_service():
+def wait_for_txt2img_service(max_retries=240):
     """
     Check if the txt2img endpoint is ready to receive requests.
     """
     print("Checking txt2img endpoint availability...")
     retries = 0
     
-    while True:
+    while retries < max_retries:
         try:
             # Test with a minimal request to see if endpoint exists
             test_request = {
@@ -68,18 +72,23 @@ def wait_for_txt2img_service():
             elif response.status_code == 404:
                 retries += 1
                 if retries % 15 == 0:
-                    print("txt2img endpoint not found (404), retrying...")
+                    print(f"txt2img endpoint not found (404), retrying... ({retries}/{max_retries})")
             else:
                 print(f"txt2img endpoint returned status {response.status_code}, retrying...")
+                retries += 1
                 
         except requests.exceptions.RequestException as e:
             retries += 1
             if retries % 15 == 0:
-                print(f"txt2img endpoint not ready: {e}")
+                print(f"txt2img endpoint not ready: {e} ({retries}/{max_retries})")
         except Exception as err:
             print("Error checking txt2img endpoint: ", err)
+            retries += 1
 
         time.sleep(0.5)
+    
+    # If we reach here, txt2img endpoint didn't start within timeout
+    raise Exception(f"txt2img endpoint failed to start after {max_retries} retries ({max_retries * 0.5} seconds)")
 
 
 def check_model_status():
@@ -249,23 +258,35 @@ def handler(event):
 if __name__ == "__main__":
     print("Starting WebUI API readiness checks...")
     
-    # Step 1: Wait for basic API service
-    print("Step 1: Checking basic API service...")
-    wait_for_service(url=f'{LOCAL_URL}/sd-models')
-    print("✓ Basic API service is ready")
-    
-    # Step 2: Check model status
-    print("Step 2: Checking model status...")
-    model_ready = check_model_status()
-    if not model_ready:
-        print("⚠ Warning: Model status check failed, but continuing...")
-    else:
-        print("✓ Model status check passed")
-    
-    # Step 3: Wait for txt2img endpoint
-    print("Step 3: Checking txt2img endpoint...")
-    wait_for_txt2img_service()
-    print("✓ txt2img endpoint is ready")
-    
-    print("🚀 All WebUI API services are ready. Starting RunPod Serverless...")
-    runpod.serverless.start({"handler": handler})
+    try:
+        # Step 1: Wait for basic API service
+        print("Step 1: Checking basic API service...")
+        wait_for_service(url=f'{LOCAL_URL}/sd-models')
+        print("✓ Basic API service is ready")
+        
+        # Step 2: Check model status
+        print("Step 2: Checking model status...")
+        model_ready = check_model_status()
+        if not model_ready:
+            print("⚠ Warning: Model status check failed, but continuing...")
+        else:
+            print("✓ Model status check passed")
+        
+        # Step 3: Wait for txt2img endpoint
+        print("Step 3: Checking txt2img endpoint...")
+        wait_for_txt2img_service()
+        print("✓ txt2img endpoint is ready")
+        
+        print("🚀 All WebUI API services are ready. Starting RunPod Serverless...")
+        runpod.serverless.start({"handler": handler})
+        
+    except Exception as e:
+        print(f"❌ FATAL ERROR: WebUI API failed to start properly")
+        print(f"❌ Error details: {e}")
+        print("❌ This usually indicates:")
+        print("   1. WebUI API process crashed during startup")
+        print("   2. Model loading failed")
+        print("   3. CUDA/GPU issues")
+        print("   4. Insufficient memory")
+        print("❌ Container will exit. Check the logs above for more details.")
+        exit(1)

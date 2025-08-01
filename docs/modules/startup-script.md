@@ -109,7 +109,35 @@ tcmalloc memory allocator'ı sistem genelinde aktif eder.
 3. **First Match**: head -n 1 ile ilk match selection
 4. **Environment Setting**: LD_PRELOAD variable export
 
-### 5. WebUI API Process Launch
+### 5. WebUI Directory ve File Validation
+```bash
+# Check if WebUI directory exists
+if [ ! -d "/stable-diffusion-webui" ]; then
+    echo "❌ ERROR: /stable-diffusion-webui directory not found!"
+    echo "Available directories in root:"
+    ls -la /
+    exit 1
+fi
+
+# Check if webui.py exists
+if [ ! -f "/stable-diffusion-webui/webui.py" ]; then
+    echo "❌ ERROR: /stable-diffusion-webui/webui.py not found!"
+    echo "Contents of /stable-diffusion-webui:"
+    ls -la /stable-diffusion-webui/
+    exit 1
+fi
+```
+
+#### Amaç
+WebUI dosyalarının varlığını doğrular ve path sorunlarını önler.
+
+#### Validation Steps
+- **Directory Check**: `/stable-diffusion-webui` dizininin varlığı
+- **File Check**: `webui.py` dosyasının varlığı
+- **Debug Information**: Hata durumunda directory listing
+- **Early Exit**: Dosya bulunamazsa container'ı durdur
+
+### 6. WebUI API Process Launch
 ```bash
 cd /stable-diffusion-webui && python webui.py \
   --xformers \
@@ -138,6 +166,7 @@ Automatic1111 WebUI'yi API mode'da background process olarak başlatır.
 - **Directory Change**: `cd /stable-diffusion-webui` ile WebUI dizinine geçiş
 - **Relative Path**: `python webui.py` ile relative path kullanımı
 - **Path Resolution**: Container içinde WebUI'nin doğru konumuna erişim
+- **Pre-validation**: Directory ve file existence check'leri
 
 #### Parameter Analizi
 

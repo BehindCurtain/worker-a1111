@@ -31,6 +31,22 @@ TCMALLOC="$(ldconfig -p | grep -Po "libtcmalloc.so.\d" | head -n 1)"
 export LD_PRELOAD="${TCMALLOC}"
 export PYTHONUNBUFFERED=true
 
+# Check if WebUI directory exists
+if [ ! -d "/stable-diffusion-webui" ]; then
+    echo "❌ ERROR: /stable-diffusion-webui directory not found!"
+    echo "Available directories in root:"
+    ls -la /
+    exit 1
+fi
+
+# Check if webui.py exists
+if [ ! -f "/stable-diffusion-webui/webui.py" ]; then
+    echo "❌ ERROR: /stable-diffusion-webui/webui.py not found!"
+    echo "Contents of /stable-diffusion-webui:"
+    ls -la /stable-diffusion-webui/
+    exit 1
+fi
+
 # Start WebUI API in background
 cd /stable-diffusion-webui && python webui.py \
   --xformers \
